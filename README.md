@@ -2,7 +2,9 @@
 
 ** IN PROGRESS **
 
-Terraform provider for provisioning Elastic Cloud Enterprise (ECE) Elasticsearch clusters, compatible with v2.2 of ECE. Based off of work by Phillip Baker on the [terraform-provider-elasticsearch](https://github.com/phillbaker/terraform-provider-elasticsearch).
+Terraform provider for provisioning Elastic Cloud Enterprise (ECE) Elasticsearch clusters, compatible with v2.2 of ECE. 
+
+Based on work by Phillip Baker on the [terraform-provider-elasticsearch](https://github.com/phillbaker/terraform-provider-elasticsearch).
 
 ## Installation
 
@@ -39,6 +41,7 @@ resource "ece_cluster" "test_cluster" {
   },
   "zone_count" : 1
 }
+```
 
 ## Development
 
