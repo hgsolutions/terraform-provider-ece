@@ -56,7 +56,7 @@ resource "ece_cluster" "test_cluster" {
 cd $GOPATH/src/github.com/Ascendon/terraform-provider-ece
 
 glide install
-go build -o /path/to/binary/terraform-provider-ece
+go build -o releases/terraform-provider-ece
 ```
 
 ## Contributing

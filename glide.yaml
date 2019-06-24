@@ -1,0 +1,12 @@
+package: github.com/Ascendon/terraform-provider-ece
+import:
+- package: github.com/hashicorp/terraform
+  version: v0.11.8
+  subpackages:
+  - helper/schema
+  - terraform
+- package: github.com/stretchr/testify
+  version: ^1.1.4
+  subpackages:
+  - mock
+
