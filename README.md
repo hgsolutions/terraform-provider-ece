@@ -22,24 +22,26 @@ See [the docs for more information](https://www.terraform.io/docs/plugins/basics
 
 ```tf
 provider "ece" {
-    url = "http://ec2-18-234-124-116.compute-1.amazonaws.com:12400"
-    user = ""
-    password = ""
-    insecure = true # to bypass certificate check
+  url      = "http://ece-api-url:12400"
+  username = "admin"
+  password = "************"
+  insecure = true                                                    # to bypass certificate check
 }
 
 resource "ece_cluster" "test_cluster" {
-  name = "My First Cluster"
-  elasticsearch_version = "7.1.0",
-  memory_per_node" : 2048,
-  node_count_per_zone" : 1,
-  node_type" : {
-        "data" : true,
-        "ingest" : true,
-        "master" : true,
-        "ml" : true
-  },
-  "zone_count" : 1
+  name                  = "My Test Cluster"
+  elasticsearch_version = "7.1.0"
+  memory_per_node       = 2048
+  node_count_per_zone   = 1
+
+  node_type {
+    data   = true
+    ingest = true
+    master = true
+    ml     = true
+  }
+
+  zone_count = 1
 }
 ```
 
@@ -56,7 +58,10 @@ resource "ece_cluster" "test_cluster" {
 cd $GOPATH/src/github.com/Ascendon/terraform-provider-ece
 
 glide install
+
 go build -o releases/terraform-provider-ece
+
+cp ~/go/src/github.com/Ascendon/terraform-provider-ece/releases/terraform-provider-ece /Users/andmat02/.terraform.d/plugins/darwin_amd64/.
 ```
 
 ## Contributing
