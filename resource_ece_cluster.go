@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 
 	"github.com/hashicorp/terraform/helper/schema"
@@ -97,96 +95,20 @@ func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 
 	// TODO: Determine whether the named cluster already exists...
 
-	data := true
-	ingest := true
-	master := true
-	ml := false
+	clusterName := d.Get("name").(string)
+	log.Printf("[DEBUG] Creating cluster with name: %s\n", clusterName)
 
-	// nodeTypes := d.Get("node_type").(*schema.Set)
-	// for _, raw := range nodeTypes {
-	// 	t := raw.(map[string]interface{})
-	// 	if val, ok := t["data"]; ok {
-	// 		data := t["data"].(bool)
-	// 	}
-
-	// }
-
-	// Example cluster creation request body.
-	// {
-	// 	"cluster_name" : "My First Deployment",
-	// 	"plan" : {
-	// 		"elasticsearch" : {
-	// 			"version" : "7.1.0"
-	// 		},
-	// 		"cluster_topology" : [
-	// 			{
-	// 				"memory_per_node" : 2048,
-	// 				"node_count_per_zone" : 1,
-	// 				"node_type" : {
-	// 				   "data" : true,
-	// 				   "ingest" : true,
-	// 				   "master" : true,
-	// 				   "ml" : true
-	// 				},
-	// 				"zone_count" : 1
-	// 			}
-	// 		]
-	// 	}
-	//   }
+	clusterPlan, err := buildClusterPlan(d, meta)
+	if err != nil {
+		return err
+	}
 
 	createClusterRequest := CreateElasticsearchClusterRequest{
-		ClusterName: d.Get("name").(string),
-		Plan: ElasticsearchClusterPlan{
-			Elasticsearch: ElasticsearchConfiguration{
-				Version: d.Get("elasticsearch_version").(string),
-			},
-			ClusterTopology: []ElasticsearchClusterTopologyElement{
-				ElasticsearchClusterTopologyElement{
-					MemoryPerNode:    d.Get("memory_per_node").(int),
-					NodeCountPerZone: d.Get("node_count_per_zone").(int),
-					NodeType: ElasticsearchNodeType{
-						Data:   data,
-						Ingest: ingest,
-						Master: master,
-						ML:     ml,
-					},
-					ZoneCount: d.Get("zone_count").(int),
-				},
-			},
-		},
+		ClusterName: clusterName,
+		Plan:        clusterPlan,
 	}
 
-	jsonData, err := json.Marshal(createClusterRequest)
-	if err != nil {
-		return err
-	}
-
-	jsonString := string(jsonData)
-	log.Printf("[DEBUG] JSON Request: %v\n", jsonString)
-
-	resp, err := client.CreateCluster(jsonString)
-	if err != nil {
-		return err
-	}
-
-	// Example response:
-	// {
-	// 	"elasticsearch_cluster_id": "5de00f3876e3442f8e4f83110af0e251",
-	// 	"credentials": {
-	// 		"username": "elastic",
-	// 		"password": "Ov8cmAVCqTr8biFfND2wtIuY"
-	// 	}
-	// }
-
-	respBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("[DEBUG] CreateCluster response body: %v\n", string(respBytes))
-
-	var crudResponse ClusterCrudResponse
-	err = json.Unmarshal(respBytes, &crudResponse)
+	crudResponse, err := client.CreateCluster(createClusterRequest)
 	if err != nil {
 		return err
 	}
@@ -194,7 +116,7 @@ func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 	clusterID := crudResponse.ElasticsearchClusterID
 	log.Printf("[DEBUG] Created cluster ID: %s\n", clusterID)
 
-	err = client.WaitForCreate(clusterID)
+	err = client.WaitForStatus(clusterID, "started")
 	if err != nil {
 		return err
 	}
@@ -208,15 +130,19 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 
 	clusterID := d.Id()
-	log.Printf("[DEBUG] Reading cluster plan for cluster ID: %s\n", clusterID)
+	log.Printf("[DEBUG] Reading cluster information for cluster ID: %s\n", clusterID)
 
 	resp, err := client.GetCluster(clusterID)
 	if err != nil {
 		return err
 	}
 
+	// If the resource does not exist, inform Terraform. We want to immediately
+	// return here to prevent further processing.
 	if resp.StatusCode == 404 {
-		return fmt.Errorf("[WARN] Cluster ID was not found: %+v", resp)
+		log.Printf("[DEBUG] cluster ID not found: %s\n", clusterID)
+		d.SetId("")
+		return nil
 	}
 
 	jsonBody, err := client.GetResponseAsJSON(resp)
@@ -230,6 +156,34 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
+	client := meta.(*ECEClient)
+
+	clusterID := d.Id()
+	log.Printf("[DEBUG] Updating cluster ID: %s\n", clusterID)
+
+	resp, err := client.GetCluster(clusterID)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == 404 {
+		return fmt.Errorf("%q: Cluster ID was not found: ", clusterID)
+	}
+
+	clusterPlan, err := buildClusterPlan(d, meta)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.UpdateCluster(clusterID, clusterPlan)
+	if err != nil {
+		return err
+	}
+
+	err = client.WaitForStatus(clusterID, "started")
+	if err != nil {
+		return err
+	}
 
 	return resourceECEClusterRead(d, meta)
 }
@@ -256,4 +210,42 @@ func resourceECEClusterDelete(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	return nil
+}
+
+func buildClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan ElasticsearchClusterPlan, err error) {
+	// TODO: Parse from inputs
+	data := true
+	ingest := true
+	master := true
+	ml := false
+
+	// nodeTypes := d.Get("node_type").(*schema.Set)
+	// for _, raw := range nodeTypes {
+	// 	t := raw.(map[string]interface{})
+	// 	if val, ok := t["data"]; ok {
+	// 		data := t["data"].(bool)
+	// 	}
+
+	// }
+
+	clusterPlan = ElasticsearchClusterPlan{
+		Elasticsearch: ElasticsearchConfiguration{
+			Version: d.Get("elasticsearch_version").(string),
+		},
+		ClusterTopology: []ElasticsearchClusterTopologyElement{
+			ElasticsearchClusterTopologyElement{
+				MemoryPerNode:    d.Get("memory_per_node").(int),
+				NodeCountPerZone: d.Get("node_count_per_zone").(int),
+				NodeType: ElasticsearchNodeType{
+					Data:   data,
+					Ingest: ingest,
+					Master: master,
+					ML:     ml,
+				},
+				ZoneCount: d.Get("zone_count").(int),
+			},
+		},
+	}
+
+	return clusterPlan, nil
 }

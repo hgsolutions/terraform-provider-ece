@@ -33,11 +33,40 @@ type ECEClient struct {
 	timeout int
 }
 
-// CreateCluster creates a new ECE deployment and cluster using the specified json string.
-func (c *ECEClient) CreateCluster(json string) (resp *http.Response, err error) {
-	body := strings.NewReader(json)
+// CreateCluster creates a new ECE cluster using the specified create request.
+func (c *ECEClient) CreateCluster(createClusterRequest CreateElasticsearchClusterRequest) (crudResponse *ClusterCrudResponse, err error) {
+	log.Printf("[DEBUG] CreateCluster: %v\n", createClusterRequest)
 
-	log.Printf("[DEBUG] CreateCluster: %v\n", json)
+	// Example cluster creation request body.
+	// {
+	// 	"cluster_name" : "My Cluster",
+	// 	"plan" : {
+	// 		"elasticsearch" : {
+	// 			"version" : "7.1.0"
+	// 		},
+	// 		"cluster_topology" : [
+	// 			{
+	// 				"memory_per_node" : 2048,
+	// 				"node_count_per_zone" : 1,
+	// 				"node_type" : {
+	// 				   "data" : true,
+	// 				   "ingest" : true,
+	// 				   "master" : true,
+	// 				   "ml" : true
+	// 				},
+	// 				"zone_count" : 1
+	// 			}
+	// 		]
+	// 	 }
+	// }
+
+	jsonData, err := json.Marshal(createClusterRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := string(jsonData)
+	body := strings.NewReader(jsonString)
 
 	resourceURL := c.url + eceResource
 	log.Printf("[DEBUG] CreateCluster Resource URL: %s\n", resourceURL)
@@ -49,21 +78,42 @@ func (c *ECEClient) CreateCluster(json string) (resp *http.Response, err error) 
 	req.Header.Set("Content-Type", jsonContentType)
 	req.SetBasicAuth(c.username, c.password)
 
-	resp, err = c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
+	// Example response:
+	// {
+	// 	"elasticsearch_cluster_id": "5de00f3876e3442f8e4f83110af0e251",
+	// 	"credentials": {
+	// 		"username": "elastic",
+	// 		"password": "Ov8cmAVCqTr8biFfND2wtIuY"
+	// 	}
+	// }
+
 	log.Printf("[DEBUG] CreateCluster response: %v\n", resp)
 
-	return resp, nil
+	respBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] CreateCluster response body: %v\n", string(respBytes))
+
+	err = json.Unmarshal(respBytes, &crudResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return crudResponse, nil
 }
 
-// DeleteCluster deletes an existing ECE deployment and cluster using the specified json string.
+// DeleteCluster deletes an existing ECE cluster.
 func (c *ECEClient) DeleteCluster(id string) (resp *http.Response, err error) {
 	log.Printf("[DEBUG] DeleteCluster ID: %s\n", id)
 
-	resourceURL := c.url + eceResource
+	resourceURL := c.url + eceResource + "/" + id
 	log.Printf("[DEBUG] DeleteCluster Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("DELETE", resourceURL, nil)
 	if err != nil {
@@ -83,7 +133,7 @@ func (c *ECEClient) DeleteCluster(id string) (resp *http.Response, err error) {
 	return resp, nil
 }
 
-// GetCluster returns the metadata for an existing ECE deployment.
+// GetCluster returns information for an existing ECE cluster.
 func (c *ECEClient) GetCluster(id string) (resp *http.Response, err error) {
 	log.Printf("[DEBUG] GetCluster ID: %s\n", id)
 
@@ -123,11 +173,43 @@ func (c *ECEClient) GetResponseAsJSON(resp *http.Response) (jsonResponse interfa
 	return jsonResponse, nil
 }
 
-// ShutdownCluster shuts down an existing ECE deployment and cluster.
+// UpdateCluster updates an existing ECE cluster using the specified cluster plan.
+func (c *ECEClient) UpdateCluster(id string, clusterPlan ElasticsearchClusterPlan) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] UpdateCluster: %v\n", clusterPlan)
+
+	jsonData, err := json.Marshal(clusterPlan)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := string(jsonData)
+	body := strings.NewReader(jsonString)
+
+	resourceURL := c.url + eceResource + "/" + id + "/plan"
+	log.Printf("[DEBUG] UpdateCluster Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("POST", resourceURL, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	req.SetBasicAuth(c.username, c.password)
+
+	resp, err = c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] UpdateCluster response: %v\n", resp)
+
+	return resp, nil
+}
+
+// ShutdownCluster shuts down an existing ECE cluster.
 func (c *ECEClient) ShutdownCluster(id string) (resp *http.Response, err error) {
 	log.Printf("[DEBUG] ShutdownCluster ID: %s\n", id)
 
-	resourceURL := c.url + eceResource + "/_shutdown"
+	resourceURL := c.url + eceResource + "/" + id + "/_shutdown"
 	log.Printf("[DEBUG] Shutdown resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("POST", resourceURL, nil)
 	if err != nil {
@@ -147,10 +229,10 @@ func (c *ECEClient) ShutdownCluster(id string) (resp *http.Response, err error) 
 	return resp, nil
 }
 
-// WaitForCreate waits for a cluster to be created.
-func (c *ECEClient) WaitForCreate(id string) error {
+// WaitForStatus waits for a cluster to enter the specified status.
+func (c *ECEClient) WaitForStatus(id string, status string) error {
 	timeoutSeconds := time.Second * time.Duration(c.timeout)
-	log.Printf("[DEBUG] WaitForCreate will wait for %v seconds for creation of cluster ID: %s\n", timeoutSeconds, id)
+	log.Printf("[DEBUG] WaitForStatus will wait for %v seconds for %s status for cluster ID: %s\n", timeoutSeconds, status, id)
 
 	return resource.Retry(timeoutSeconds, func() *resource.RetryError {
 		resp, err := c.GetCluster(id)
@@ -170,11 +252,12 @@ func (c *ECEClient) WaitForCreate(id string) error {
 				return resource.NonRetryableError(err)
 			}
 
-			log.Printf("[DEBUG] WaitForCreate cluster status: %s\n", clusterInfo.Status)
-
-			if clusterInfo.Status == "started" {
+			if clusterInfo.Status == status {
+				log.Printf("[DEBUG] WaitForStatus desired cluster status reached: %s\n", clusterInfo.Status)
 				return nil
 			}
+
+			log.Printf("[DEBUG] WaitForStatus current cluster status: %s. Desired status: %s\n", clusterInfo.Status, status)
 		}
 
 		return resource.RetryableError(
