@@ -4,7 +4,7 @@
 
 Terraform provider for provisioning Elastic Cloud Enterprise (ECE) Elasticsearch clusters, compatible with v2.2 of ECE. 
 
-Based on work by Phillip Baker on the [terraform-provider-elasticsearch](https://github.com/phillbaker/terraform-provider-elasticsearch).
+Based on work by Phillip Baker: [terraform-provider-elasticsearch](https://github.com/phillbaker/terraform-provider-elasticsearch).
 
 ## Installation
 
@@ -25,7 +25,8 @@ provider "ece" {
   url      = "http://ece-api-url:12400"
   username = "admin"
   password = "************"
-  insecure = true                                                    # to bypass certificate check
+  insecure = true     # to bypass certificate checks
+  timeout  = 600      # timeout after 10 minutes
 }
 
 resource "ece_cluster" "test_cluster" {

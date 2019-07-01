@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 
@@ -94,6 +95,8 @@ func resourceECECluster() *schema.Resource {
 func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 
+	// TODO: Determine whether the named cluster already exists...
+
 	data := true
 	ingest := true
 	master := true
@@ -107,6 +110,29 @@ func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 	// 	}
 
 	// }
+
+	// Example cluster creation request body.
+	// {
+	// 	"cluster_name" : "My First Deployment",
+	// 	"plan" : {
+	// 		"elasticsearch" : {
+	// 			"version" : "7.1.0"
+	// 		},
+	// 		"cluster_topology" : [
+	// 			{
+	// 				"memory_per_node" : 2048,
+	// 				"node_count_per_zone" : 1,
+	// 				"node_type" : {
+	// 				   "data" : true,
+	// 				   "ingest" : true,
+	// 				   "master" : true,
+	// 				   "ml" : true
+	// 				},
+	// 				"zone_count" : 1
+	// 			}
+	// 		]
+	// 	}
+	//   }
 
 	createClusterRequest := CreateElasticsearchClusterRequest{
 		ClusterName: d.Get("name").(string),
@@ -152,27 +178,53 @@ func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 	// 	}
 	// }
 
-	responseBytes, err := ioutil.ReadAll(resp.Body)
+	respBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("[DEBUG] CreateCluster response body: %v\n", string(responseBytes))
+	log.Printf("[DEBUG] CreateCluster response body: %v\n", string(respBytes))
 
-	var response ClusterCrudResponse
-	err = json.Unmarshal(responseBytes, &response)
+	var crudResponse ClusterCrudResponse
+	err = json.Unmarshal(respBytes, &crudResponse)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("[DEBUG] Cluster ID: %v\n", response.ElasticsearchClusterID)
+	clusterID := crudResponse.ElasticsearchClusterID
+	log.Printf("[DEBUG] Created cluster ID: %s\n", clusterID)
 
-	d.SetId(response.ElasticsearchClusterID)
+	err = client.WaitForCreate(clusterID)
+	if err != nil {
+		return err
+	}
 
-	return nil
+	d.SetId(clusterID)
+
+	return resourceECEClusterRead(d, meta)
 }
 
 func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
+	client := meta.(*ECEClient)
+
+	clusterID := d.Id()
+	log.Printf("[DEBUG] Reading cluster plan for cluster ID: %s\n", clusterID)
+
+	resp, err := client.GetCluster(clusterID)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == 404 {
+		return fmt.Errorf("[WARN] Cluster ID was not found: %+v", resp)
+	}
+
+	jsonBody, err := client.GetResponseAsJSON(resp)
+	if err != nil {
+		return err
+	}
+
+	d.Set("cluster", jsonBody)
 
 	return nil
 }
@@ -183,9 +235,25 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceECEClusterDelete(d *schema.ResourceData, meta interface{}) error {
-	var err error
+	client := meta.(*ECEClient)
+	clusterID := d.Id()
 
 	// NOTE: A cluster must be successfully _shutdown first before it can be deleted.
+	log.Printf("[DEBUG] Shutting down cluster ID: %s\n", clusterID)
+	_, err := client.ShutdownCluster(clusterID)
+	if err != nil {
+		return err
+	}
 
-	return err
+	// Wait for cluster shutdown.
+	log.Printf("[DEBUG] Waiting for shutdown of cluster ID: %s\n", clusterID)
+	client.WaitForShutdown(clusterID)
+
+	log.Printf("[DEBUG] Deleting cluster ID: %s\n", clusterID)
+	_, err = client.DeleteCluster(clusterID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

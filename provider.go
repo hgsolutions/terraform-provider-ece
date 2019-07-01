@@ -54,7 +54,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Default:     3600,
-				Description: "The timeout in seconds for API calls. The default is 1 hour (3600 seconds).",
+				Description: "The timeout in seconds for resource operations. The default is 1 hour (3600 seconds).",
 			},
 			"insecure": &schema.Schema{
 				Type:        schema.TypeBool,
@@ -74,7 +74,7 @@ func Provider() terraform.ResourceProvider {
 
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	rawURL := d.Get("url").(string)
-	log.Printf("[DEBUG] ECE rawURL: %s\n", rawURL)
+	log.Printf("[DEBUG] Connecting to ECE: %s\n", rawURL)
 
 	_, err := url.Parse(rawURL)
 	if err != nil {
@@ -83,9 +83,11 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 
 	username := d.Get("username").(string)
 	password := d.Get("password").(string)
+	timeout := d.Get("timeout").(int)
 
 	log.Printf("[DEBUG] ECE username: %s\n", username)
-	log.Printf("[DEBUG] ECE password: %s\n", password)
+	//log.Printf("[DEBUG] ECE password: %s\n", password)
+	log.Printf("[DEBUG] ECE timeout: %v\n", timeout)
 
 	httpClient := getHTTPClient(d)
 
@@ -94,6 +96,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		url:        rawURL,
 		username:   username,
 		password:   password,
+		timeout:    timeout,
 	}
 
 	return eceClient, nil
