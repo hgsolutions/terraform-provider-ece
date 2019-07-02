@@ -96,6 +96,7 @@ func resourceECECluster() *schema.Resource {
 				Description: "The password for the created cluster.",
 			},
 		},
+		// TODO: Test import of existing clusters
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -104,8 +105,6 @@ func resourceECECluster() *schema.Resource {
 
 func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
-
-	// TODO: Determine whether the named cluster already exists...
 
 	// TODO: Consider whether any other settings are required for v1 of the provider. Kibana cluster?
 
@@ -174,6 +173,8 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 
+	d.Partial(true)
+
 	clusterID := d.Id()
 	log.Printf("[DEBUG] Updating cluster ID: %s\n", clusterID)
 
@@ -186,8 +187,18 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("%q: Cluster ID was not found: ", clusterID)
 	}
 
-	// TODO: Add support for updating the cluster name.
-	// See https://www.elastic.co/guide/en/cloud-enterprise/current/Clusters_-_Elasticsearch_-_CRUD_-_Configuration.html#update-es-cluster-metadata-settings
+	if d.HasChange("name") {
+		metadata := ClusterMetadataSettings{
+			ClusterName: d.Get("name").(string),
+		}
+
+		_, err = client.UpdateClusterMetadata(clusterID, metadata)
+		if err != nil {
+			return err
+		}
+	}
+
+	d.SetPartial("name")
 
 	clusterPlan, err := buildClusterPlan(d, meta)
 	if err != nil {
@@ -210,6 +221,8 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	// TODO: A plan may fail to update the cluster even if the update is accepted. Get the latest cluster
 	// plan and ensure it matches the desired plan before indicating success of the update.
+
+	d.Partial(false)
 
 	return resourceECEClusterRead(d, meta)
 }

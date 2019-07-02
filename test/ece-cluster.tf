@@ -7,7 +7,7 @@ provider "ece" {
 }
 
 resource "ece_cluster" "test_cluster" {
-  name                  = "Test Cluster 1"
+  name                  = "Test Cluster 42"
   elasticsearch_version = "7.2.0"
   memory_per_node       = 1024
   node_count_per_zone   = 1
@@ -50,5 +50,5 @@ output "test_cluster_username" {
 output "test_cluster_password" {
   value       = "${ece_cluster.test_cluster.elasticsearch_password}"
   description = "The password for logging in to the cluster."
-  sensitive   = true
+  sensitive   = false
 }

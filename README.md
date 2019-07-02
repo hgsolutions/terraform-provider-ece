@@ -31,7 +31,7 @@ provider "ece" {
 
 resource "ece_cluster" "test_cluster" {
   name                  = "My Test Cluster"
-  elasticsearch_version = "7.1.0"
+  elasticsearch_version = "7.2.0"
   memory_per_node       = 2048
   node_count_per_zone   = 1
 
@@ -52,6 +52,27 @@ resource "ece_cluster" "test_cluster" {
 
 * [Golang](https://golang.org/dl/) >= 1.7
 * [Glide](https://github.com/Masterminds/glide)
+* [ECE](https://www.elastic.co/downloads/enterprise)
+
+### ECE Setup
+
+To create a test ECE environment in AWS, the following will get you started:
+
+1) Create a new AWS security group with the correct [port access for ECE](https://www.elastic.co/guide/en/cloud-enterprise/current/ece-prereqs-networking.html).
+
+2) Launch a new EC2 instance from an `elastic-cloud-enterprise` Community AMI, specifying the above security group.
+
+    * The ECE Ubuntu AMIs have most of the prereq configuration done on them for ECE, unlike Centos. For example, the `elastic-cloud-enterprise-xenial-201903110432` AMI is a good starting point.
+
+    * Chose an instance type with the [minimum required hardware for ECE](https://www.elastic.co/guide/en/cloud-enterprise/current/ece-prereqs-hardware.html). For example, `r5.xlarge` could be used for a dev cluster.
+
+2) Go through the [prerequisite configuration](https://www.elastic.co/guide/en/cloud-enterprise/current/ece-prereqs-software.html) for your chosen OS.
+
+3) Download and run the installation script per the instructions here: https://www.elastic.co/guide/en/cloud-enterprise/current/ece-installing-online.html#ece-installing-first
+
+### Debugging
+
+By default, provider log messages are not written to standard out during provider execution. To enable verbose output of Terraform and provider log messages, set the `TF_LOG` environment variable to `DEBUG`.
 
 ### Building
 

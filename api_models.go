@@ -16,6 +16,12 @@ type ClusterCrudResponse struct {
 	Credentials            ClusterCredentials `json:"credentials"`
 }
 
+// ClusterMetadataSettings defines the top-level configuration settings for the Elasticsearch cluster.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ClusterMetadataSettings
+type ClusterMetadataSettings struct {
+	ClusterName string `json:"name"`
+}
+
 // CreateElasticsearchClusterRequest defines the request body for creating an Elasticsearch cluster.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#CreateElasticsearchClusterRequest
 type CreateElasticsearchClusterRequest struct {

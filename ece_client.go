@@ -201,7 +201,7 @@ func (c *ECEClient) GetResponseBodyAsString(resp *http.Response) (body string, e
 
 // UpdateCluster updates an existing ECE cluster using the specified cluster plan.
 func (c *ECEClient) UpdateCluster(id string, clusterPlan ElasticsearchClusterPlan) (resp *http.Response, err error) {
-	log.Printf("[DEBUG] UpdateCluster: %v\n", clusterPlan)
+	log.Printf("[DEBUG] UpdateCluster: %s: %v\n", id, clusterPlan)
 
 	jsonData, err := json.Marshal(clusterPlan)
 	if err != nil {
@@ -231,6 +231,44 @@ func (c *ECEClient) UpdateCluster(id string, clusterPlan ElasticsearchClusterPla
 	if resp.StatusCode != 202 {
 		respBytes, _ := ioutil.ReadAll(resp.Body)
 		return nil, fmt.Errorf("%q: cluster could not be updated: %v", id, string(respBytes))
+	}
+
+	return resp, nil
+}
+
+// UpdateClusterMetadata updates the metadata for an existing ECE cluster.
+func (c *ECEClient) UpdateClusterMetadata(id string, metadata ClusterMetadataSettings) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] UpdateClusterMetadata: %s: %v\n", id, metadata)
+
+	jsonData, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := string(jsonData)
+	body := strings.NewReader(jsonString)
+
+	// PATCH /api/v1/clusters/elasticsearch/{cluster_id}/metadata/settings
+	resourceURL := c.url + eceResource + "/" + id + "/metadata/settings"
+	log.Printf("[DEBUG] UpdateClusterMetadata Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("PATCH", resourceURL, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	req.SetBasicAuth(c.username, c.password)
+
+	resp, err = c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] UpdateClusterMetadata response: %v\n", resp)
+
+	if resp.StatusCode != 200 {
+		respBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%q: cluster metadata settings could not be updated: %v", id, string(respBytes))
 	}
 
 	return resp, nil
@@ -292,7 +330,7 @@ func (c *ECEClient) WaitForStatus(id string, status string) error {
 		}
 
 		return resource.RetryableError(
-			fmt.Errorf("%q: Timeout while waiting for the cluster to be created", id))
+			fmt.Errorf("%q: timeout while waiting for the cluster to be created", id))
 	})
 }
 
@@ -324,6 +362,6 @@ func (c *ECEClient) WaitForShutdown(id string) error {
 		}
 
 		return resource.RetryableError(
-			fmt.Errorf("%q: Timeout while waiting for the cluster to shutdown", id))
+			fmt.Errorf("%q: timeout while waiting for the cluster to shutdown", id))
 	})
 }
