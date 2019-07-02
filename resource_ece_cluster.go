@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/hashicorp/terraform/helper/schema"
 )
@@ -47,6 +48,7 @@ func resourceECECluster() *schema.Resource {
 				Description: "Controls the combinations of Elasticsearch node types. By default, the Elasticsearch node is master eligible, can hold data, and run ingest pipelines.",
 				ForceNew:    false,
 				Optional:    true,
+				MaxItems:    1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"data": {
@@ -83,6 +85,16 @@ func resourceECECluster() *schema.Resource {
 				Default:     1,
 				Description: "The default number of zones in which data nodes will be placed. The default is 1.",
 			},
+			"elasticsearch_username": &schema.Schema{
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The username for the created cluster.",
+			},
+			"elasticsearch_password": &schema.Schema{
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The password for the created cluster.",
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
@@ -94,6 +106,8 @@ func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 
 	// TODO: Determine whether the named cluster already exists...
+
+	// TODO: Consider whether any other settings are required for v1 of the provider. Kibana cluster?
 
 	clusterName := d.Get("name").(string)
 	log.Printf("[DEBUG] Creating cluster with name: %s\n", clusterName)
@@ -122,6 +136,8 @@ func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	d.SetId(clusterID)
+	d.Set("elasticsearch_username", crudResponse.Credentials.Username)
+	d.Set("elasticsearch_password", crudResponse.Credentials.Password)
 
 	return resourceECEClusterRead(d, meta)
 }
@@ -183,10 +199,17 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
+	// Wait for the cluster plan to be initiated.
+	duration := time.Duration(5) * time.Second // 5 seconds
+	time.Sleep(duration)
+
 	err = client.WaitForStatus(clusterID, "started")
 	if err != nil {
 		return err
 	}
+
+	// TODO: A plan may fail to update the cluster even if the update is accepted. Get the latest cluster
+	// plan and ensure it matches the desired plan before indicating success of the update.
 
 	return resourceECEClusterRead(d, meta)
 }
