@@ -53,9 +53,13 @@ resource "ece_cluster" "test_cluster" {
 * [Golang](https://golang.org/dl/) >= 1.7
 * [Glide](https://github.com/Masterminds/glide)
 
-```
-# Ensure that this folder is at the following location: `${GOPATH}/src/github.com/Ascendon/terraform-provider-ece`
+### Building
 
+#### For building on macOS, Linux
+
+Ensure that this folder is at the following location: `${GOPATH}/src/github.com/Ascendon/terraform-provider-ece`
+
+```
 cd $GOPATH/src/github.com/Ascendon/terraform-provider-ece
 
 glide install
