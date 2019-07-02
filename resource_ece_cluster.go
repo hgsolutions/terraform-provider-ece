@@ -145,7 +145,7 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 		return nil
 	}
 
-	jsonBody, err := client.GetResponseAsJSON(resp)
+	jsonBody, err := client.GetResponseBodyAsJSON(resp)
 	if err != nil {
 		return err
 	}

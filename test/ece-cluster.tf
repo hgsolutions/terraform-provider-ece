@@ -1,14 +1,14 @@
 provider "ece" {
-  url      = "http://ec2-18-234-124-116.compute-1.amazonaws.com:12400"
+  url      = "http://ec2-107-22-141-112.compute-1.amazonaws.com:12400"
   username = "admin"
-  password = "5tWLarHsRDWI7pAHHA1hqMwrhHqp0QhlaK70NizfRHl"
+  password = "bKbLcp8uQ6SJyfpYRjIhmjijbwbRWQa6c8ntx2Cqu7u"
   insecure = true                                                      # to bypass certificate check
   timeout  = 600                                                       # timeout after 10 minutes
 }
 
 resource "ece_cluster" "test_cluster" {
-  name                  = "My Test Cluster 3"
-  elasticsearch_version = "7.1.0"
+  name                  = "Test Cluster 1"
+  elasticsearch_version = "7.2.0"
   memory_per_node       = 2048
   node_count_per_zone   = 1
 
