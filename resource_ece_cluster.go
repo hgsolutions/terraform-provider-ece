@@ -70,7 +70,7 @@ func resourceECECluster() *schema.Resource {
 						"ml": {
 							Type:        schema.TypeBool,
 							Optional:    true,
-							Default:     true,
+							Default:     false,
 							Description: "Defines whether this node can run ml jobs, valid only for versions 5.4.0 or greater. The default is false.",
 						},
 					},
@@ -105,7 +105,7 @@ func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 
 	createClusterRequest := CreateElasticsearchClusterRequest{
 		ClusterName: clusterName,
-		Plan:        clusterPlan,
+		Plan:        *clusterPlan,
 	}
 
 	crudResponse, err := client.CreateCluster(createClusterRequest)
@@ -170,12 +170,15 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("%q: Cluster ID was not found: ", clusterID)
 	}
 
+	// TODO: Add support for updating the cluster name.
+	// See https://www.elastic.co/guide/en/cloud-enterprise/current/Clusters_-_Elasticsearch_-_CRUD_-_Configuration.html#update-es-cluster-metadata-settings
+
 	clusterPlan, err := buildClusterPlan(d, meta)
 	if err != nil {
 		return err
 	}
 
-	_, err = client.UpdateCluster(clusterID, clusterPlan)
+	_, err = client.UpdateCluster(clusterID, *clusterPlan)
 	if err != nil {
 		return err
 	}
@@ -212,23 +215,13 @@ func resourceECEClusterDelete(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-func buildClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan ElasticsearchClusterPlan, err error) {
-	// TODO: Parse from inputs
-	data := true
-	ingest := true
-	master := true
-	ml := false
+func buildClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *ElasticsearchClusterPlan, err error) {
+	nodeType, err := buildNodeType(d, meta)
+	if err != nil {
+		return nil, err
+	}
 
-	// nodeTypes := d.Get("node_type").(*schema.Set)
-	// for _, raw := range nodeTypes {
-	// 	t := raw.(map[string]interface{})
-	// 	if val, ok := t["data"]; ok {
-	// 		data := t["data"].(bool)
-	// 	}
-
-	// }
-
-	clusterPlan = ElasticsearchClusterPlan{
+	clusterPlan = &ElasticsearchClusterPlan{
 		Elasticsearch: ElasticsearchConfiguration{
 			Version: d.Get("elasticsearch_version").(string),
 		},
@@ -236,16 +229,46 @@ func buildClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan Ela
 			ElasticsearchClusterTopologyElement{
 				MemoryPerNode:    d.Get("memory_per_node").(int),
 				NodeCountPerZone: d.Get("node_count_per_zone").(int),
-				NodeType: ElasticsearchNodeType{
-					Data:   data,
-					Ingest: ingest,
-					Master: master,
-					ML:     ml,
-				},
-				ZoneCount: d.Get("zone_count").(int),
+				NodeType:         *nodeType,
+				ZoneCount:        d.Get("zone_count").(int),
 			},
 		},
 	}
 
 	return clusterPlan, nil
+}
+
+func buildNodeType(d *schema.ResourceData, meta interface{}) (nodeType *ElasticsearchNodeType, err error) {
+	nodeType = &ElasticsearchNodeType{
+		Data:   true,
+		Ingest: true,
+		Master: true,
+		ML:     false,
+	}
+
+	if v, ok := d.GetOk("node_type"); ok {
+		nodeTypeList := v.(*schema.Set).List()
+		for _, vv := range nodeTypeList {
+			nt := vv.(map[string]interface{})
+
+			if v, ok := nt["data"]; ok {
+				nodeType.Data = v.(bool)
+				log.Printf("[DEBUG] Setting node_type.data: %t\n", nodeType.Data)
+			}
+			if v, ok := nt["ingest"]; ok {
+				nodeType.Ingest = v.(bool)
+				log.Printf("[DEBUG] Setting node_type.ingest: %t\n", nodeType.Ingest)
+			}
+			if v, ok := nt["master"]; ok {
+				nodeType.Master = v.(bool)
+				log.Printf("[DEBUG] Setting node_type.master: %t\n", nodeType.Master)
+			}
+			if v, ok := nt["ml"]; ok {
+				nodeType.ML = v.(bool)
+				log.Printf("[DEBUG] Setting node_type.ml: %t\n", nodeType.ML)
+			}
+		}
+	}
+
+	return nodeType, nil
 }
