@@ -8,13 +8,7 @@ Based on work by Phillip Baker: [terraform-provider-elasticsearch](https://githu
 
 ## Installation
 
-TODO: Download a binary, and put it in a good spot on your system. Then update your `~/.terraformrc` to refer to the binary:
-
-```hcl
-providers {
-  ece = "/path/to/terraform-provider-ece"
-}
-```
+Build or download a binary from the releases folder and put it in your Terraform user plugins directory.
 
 See [the docs for more information](https://www.terraform.io/docs/plugins/basics.html).
 
@@ -76,7 +70,7 @@ By default, provider log messages are not written to standard out during provide
 
 ### Building
 
-#### For building on macOS, Linux
+#### For building on macOS
 
 Ensure that this folder is at the following location: `${GOPATH}/src/github.com/Ascendon/terraform-provider-ece`
 
@@ -87,7 +81,7 @@ glide install
 
 go build -o releases/terraform-provider-ece
 
-cp ~/go/src/github.com/Ascendon/terraform-provider-ece/releases/terraform-provider-ece /Users/andmat02/.terraform.d/plugins/darwin_amd64/.
+cp ~/go/src/github.com/Ascendon/terraform-provider-ece/releases/terraform-provider-ece /Users/<username>/.terraform.d/plugins/darwin_amd64/.
 ```
 
 ## Contributing

@@ -1,7 +1,7 @@
 provider "ece" {
-  url      = "http://ec2-107-22-141-112.compute-1.amazonaws.com:12400"
+  url      = "http://ec2-123-456-789-101.compute-1.amazonaws.com:12400"
   username = "admin"
-  password = "bKbLcp8uQ6SJyfpYRjIhmjijbwbRWQa6c8ntx2Cqu7u"
+  password = "******"
   insecure = true                                                      # to bypass certificate check
   timeout  = 600                                                       # timeout after 10 minutes
 }
