@@ -228,7 +228,7 @@ func (c *ECEClient) UpdateCluster(id string, clusterPlan ElasticsearchClusterPla
 
 	log.Printf("[DEBUG] UpdateCluster response: %v\n", resp)
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 202 {
 		respBytes, _ := ioutil.ReadAll(resp.Body)
 		return nil, fmt.Errorf("%q: cluster could not be updated: %v", id, string(respBytes))
 	}
