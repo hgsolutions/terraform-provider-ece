@@ -98,7 +98,6 @@ func resourceECECluster() *schema.Resource {
 				Description: "The password for the created cluster.",
 			},
 		},
-		// TODO: Test import of existing clusters
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -343,23 +342,6 @@ func expandClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *E
 
 	return clusterPlan, nil
 }
-
-// func flattenClusterPlan(clusterPlan *ElasticsearchClusterPlan) []map[string]interface{} {
-// 	m := map[string]interface{}{}
-
-// 	m["elasticsearch_version"] = clusterPlan.Elasticsearch.Version
-
-// 	if len(clusterPlan.ClusterTopology) > 0 {
-// 		clusterTopology := clusterPlan.ClusterTopology[0]
-// 		m["memory_per_node"] = clusterTopology.MemoryPerNode
-// 		m["node_count_per_zone"] = clusterTopology.NodeCountPerZone
-// 		m["zone_count"] = clusterTopology.ZoneCount
-
-// 		m["node_type"] = flattenNodeType(&clusterTopology.NodeType)
-// 	}
-
-// 	return []map[string]interface{}{m}
-// }
 
 func expandNodeType(d *schema.ResourceData, meta interface{}) (nodeType *ElasticsearchNodeType, err error) {
 	nodeType = DefaultElasticsearchNodeType()
