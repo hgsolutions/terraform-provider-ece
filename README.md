@@ -33,7 +33,7 @@ resource "ece_cluster" "test_cluster" {
     data   = true
     ingest = true
     master = true
-    ml     = true
+    ml     = false
   }
 
   zone_count = 1

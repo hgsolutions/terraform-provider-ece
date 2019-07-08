@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"time"
 
@@ -111,7 +113,7 @@ func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 	clusterName := d.Get("name").(string)
 	log.Printf("[DEBUG] Creating cluster with name: %s\n", clusterName)
 
-	clusterPlan, err := buildClusterPlan(d, meta)
+	clusterPlan, err := expandClusterPlan(d, meta)
 	if err != nil {
 		return err
 	}
@@ -160,12 +162,80 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 		return nil
 	}
 
-	jsonBody, err := client.GetResponseBodyAsJSON(resp)
+	respBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	d.Set("cluster", jsonBody)
+	log.Printf("[DEBUG] Cluster response body: %v\n", string(respBytes))
+
+	var clusterInfo ElasticsearchClusterInfo
+	err = json.Unmarshal(respBytes, &clusterInfo)
+	if err != nil {
+		return err
+	}
+
+	d.Set("name", clusterInfo.ClusterName)
+
+	currentPlan := clusterInfo.PlanInfo.Current.Plan
+
+	err = d.Set("elasticsearch_version", currentPlan.Elasticsearch.Version)
+	if err != nil {
+		return err
+	}
+
+	// NOTE: This property appears as deprecated in the ECE API documentation, recommending use of the zone count from the
+	// ElasticsearchClusterTopologyElement instead. However, zone count is not returned for ElasticsearchClusterTopologyElement
+	// in the current version of ECE (2.2.3). To support either location, the zone count is used from cluster plan unless the
+	// cluster topology element has a non-zero value.
+	// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterPlan
+	zoneCount := currentPlan.ZoneCount
+
+	if len(currentPlan.ClusterTopology) > 0 {
+		clusterTopology := currentPlan.ClusterTopology[0]
+
+		err = d.Set("memory_per_node", clusterTopology.MemoryPerNode)
+		if err != nil {
+			return err
+		}
+
+		err = d.Set("node_count_per_zone", clusterTopology.NodeCountPerZone)
+		if err != nil {
+			return err
+		}
+
+		// See note above about clusterPlan.ZoneCount.
+		if clusterTopology.ZoneCount > 0 {
+			zoneCount = clusterTopology.ZoneCount
+		}
+	}
+
+	err = d.Set("zone_count", zoneCount)
+	if err != nil {
+		return err
+	}
+
+	if len(clusterInfo.Topology.Instances) > 0 {
+		instance := clusterInfo.Topology.Instances[0]
+
+		nodeType := &ElasticsearchNodeType{}
+
+		if instance.ServiceRoles != nil {
+			nodeTypeMap := make(map[string]interface{}, len(instance.ServiceRoles))
+			for _, s := range instance.ServiceRoles {
+				nodeTypeMap[s] = true
+			}
+
+			expandNodeTypeFromMap(nodeType, nodeTypeMap)
+		}
+
+		flatNodeType := flattenNodeType(nodeType)
+
+		err = d.Set("node_type", flatNodeType)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -200,7 +270,7 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	d.SetPartial("name")
 
-	clusterPlan, err := buildClusterPlan(d, meta)
+	clusterPlan, err := expandClusterPlan(d, meta)
 	if err != nil {
 		return err
 	}
@@ -251,8 +321,8 @@ func resourceECEClusterDelete(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-func buildClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *ElasticsearchClusterPlan, err error) {
-	nodeType, err := buildNodeType(d, meta)
+func expandClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *ElasticsearchClusterPlan, err error) {
+	nodeType, err := expandNodeType(d, meta)
 	if err != nil {
 		return nil, err
 	}
@@ -274,37 +344,77 @@ func buildClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *El
 	return clusterPlan, nil
 }
 
-func buildNodeType(d *schema.ResourceData, meta interface{}) (nodeType *ElasticsearchNodeType, err error) {
-	nodeType = &ElasticsearchNodeType{
-		Data:   true,
-		Ingest: true,
-		Master: true,
-		ML:     false,
-	}
+// func flattenClusterPlan(clusterPlan *ElasticsearchClusterPlan) []map[string]interface{} {
+// 	m := map[string]interface{}{}
+
+// 	m["elasticsearch_version"] = clusterPlan.Elasticsearch.Version
+
+// 	if len(clusterPlan.ClusterTopology) > 0 {
+// 		clusterTopology := clusterPlan.ClusterTopology[0]
+// 		m["memory_per_node"] = clusterTopology.MemoryPerNode
+// 		m["node_count_per_zone"] = clusterTopology.NodeCountPerZone
+// 		m["zone_count"] = clusterTopology.ZoneCount
+
+// 		m["node_type"] = flattenNodeType(&clusterTopology.NodeType)
+// 	}
+
+// 	return []map[string]interface{}{m}
+// }
+
+func expandNodeType(d *schema.ResourceData, meta interface{}) (nodeType *ElasticsearchNodeType, err error) {
+	nodeType = DefaultElasticsearchNodeType()
 
 	if v, ok := d.GetOk("node_type"); ok {
 		nodeTypeList := v.(*schema.Set).List()
 		for _, vv := range nodeTypeList {
-			nt := vv.(map[string]interface{})
-
-			if v, ok := nt["data"]; ok {
-				nodeType.Data = v.(bool)
-				log.Printf("[DEBUG] Setting node_type.data: %t\n", nodeType.Data)
-			}
-			if v, ok := nt["ingest"]; ok {
-				nodeType.Ingest = v.(bool)
-				log.Printf("[DEBUG] Setting node_type.ingest: %t\n", nodeType.Ingest)
-			}
-			if v, ok := nt["master"]; ok {
-				nodeType.Master = v.(bool)
-				log.Printf("[DEBUG] Setting node_type.master: %t\n", nodeType.Master)
-			}
-			if v, ok := nt["ml"]; ok {
-				nodeType.ML = v.(bool)
-				log.Printf("[DEBUG] Setting node_type.ml: %t\n", nodeType.ML)
-			}
+			nodeTypeMap := vv.(map[string]interface{})
+			expandNodeTypeFromMap(nodeType, nodeTypeMap)
 		}
 	}
 
 	return nodeType, nil
+}
+
+func expandNodeTypeFromMap(nodeType *ElasticsearchNodeType, nodeTypeMap map[string]interface{}) {
+	if v, ok := nodeTypeMap["data"]; ok {
+		nodeType.Data = v.(bool)
+		log.Printf("[DEBUG] Expanded node_type.data as: %t\n", nodeType.Data)
+	}
+
+	if v, ok := nodeTypeMap["ingest"]; ok {
+		nodeType.Ingest = v.(bool)
+		log.Printf("[DEBUG] Expanded node_type.ingest as: %t\n", nodeType.Ingest)
+	}
+
+	if v, ok := nodeTypeMap["master"]; ok {
+		nodeType.Master = v.(bool)
+		log.Printf("[DEBUG] Expanded node_type.master as: %t\n", nodeType.Master)
+	}
+
+	if v, ok := nodeTypeMap["ml"]; ok {
+		nodeType.ML = v.(bool)
+		log.Printf("[DEBUG] Expanded node_type.ml as: %t\n", nodeType.ML)
+	}
+}
+
+func flattenNodeType(nodeType *ElasticsearchNodeType) []map[string]interface{} {
+	m := make([]map[string]interface{}, 0)
+
+	mm := map[string]interface{}{}
+
+	mm["data"] = nodeType.Data
+	log.Printf("[DEBUG] Flattened node_type.data as: %t\n", mm["data"])
+
+	mm["ingest"] = nodeType.Ingest
+	log.Printf("[DEBUG] Flattened node_type.ingest as: %t\n", mm["ingest"])
+
+	mm["master"] = nodeType.Master
+	log.Printf("[DEBUG] Flattened node_type.master as: %t\n", mm["master"])
+
+	mm["ml"] = nodeType.ML
+	log.Printf("[DEBUG] Flattened node_type.ml as: %t\n", mm["ml"])
+
+	m = append(m, mm)
+
+	return m
 }

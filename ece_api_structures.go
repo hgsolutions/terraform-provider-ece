@@ -16,10 +16,23 @@ type ClusterCrudResponse struct {
 	Credentials            ClusterCredentials `json:"credentials"`
 }
 
+// ClusterInstanceInfo defines information about each instance in the Elasticsearch cluster.
+type ClusterInstanceInfo struct {
+	ServiceRoles []string `json:"service_roles"` // Currently only populated for Elasticsearch, with possible values: master,data,ingest,ml
+}
+
 // ClusterMetadataSettings defines the top-level configuration settings for the Elasticsearch cluster.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ClusterMetadataSettings
 type ClusterMetadataSettings struct {
 	ClusterName string `json:"name"`
+}
+
+// ClusterTopologyInfo defines the topology for Elasticsearch clusters, multiple Kibana instances, or multiple APM Servers.
+// The ClusterTopologyInfo also includes the instances and containers, and where they are located.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ClusterTopologyInfo
+type ClusterTopologyInfo struct {
+	Healthy   bool                  `json:"healthy"`
+	Instances []ClusterInstanceInfo `json:"instances"`
 }
 
 // CreateElasticsearchClusterRequest defines the request body for creating an Elasticsearch cluster.
@@ -32,10 +45,12 @@ type CreateElasticsearchClusterRequest struct {
 // ElasticsearchClusterInfo defines the information for an Elasticsearch cluster.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterInfo
 type ElasticsearchClusterInfo struct {
-	ClusterID   string `json:"cluster_id"`
-	ClusterName string `json:"cluster_name"`
-	Healthy     bool   `json:"healthy"`
-	Status      string `json:"status"`
+	ClusterID   string                        `json:"cluster_id"`
+	ClusterName string                        `json:"cluster_name"`
+	Healthy     bool                          `json:"healthy"`
+	PlanInfo    ElasticsearchClusterPlansInfo `json:"plan_info"`
+	Status      string                        `json:"status"`
+	Topology    ClusterTopologyInfo           `json:"topology"`
 }
 
 // ElasticsearchClusterPlan defines the plan for an Elasticsearch cluster.
@@ -43,6 +58,7 @@ type ElasticsearchClusterInfo struct {
 type ElasticsearchClusterPlan struct {
 	Elasticsearch   ElasticsearchConfiguration            `json:"elasticsearch"`
 	ClusterTopology []ElasticsearchClusterTopologyElement `json:"cluster_topology"`
+	ZoneCount       int                                   `json:"zone_count"`
 }
 
 // ElasticsearchClusterPlanInfo defines information about an Elasticsearch cluster plan.
@@ -85,4 +101,14 @@ type ElasticsearchNodeType struct {
 	Ingest bool `json:"ingest"`
 	Master bool `json:"master"`
 	ML     bool `json:"ml"`
+}
+
+// DefaultElasticsearchNodeType creates a new ElasticsearchNodeType with default values.
+func DefaultElasticsearchNodeType() *ElasticsearchNodeType {
+	return &ElasticsearchNodeType{
+		Data:   true,
+		Ingest: true,
+		Master: true,
+		ML:     false,
+	}
 }
