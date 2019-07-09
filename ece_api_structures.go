@@ -77,9 +77,10 @@ type ElasticsearchClusterInfo struct {
 // ElasticsearchClusterPlan defines the plan for an Elasticsearch cluster.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterPlan
 type ElasticsearchClusterPlan struct {
-	Elasticsearch   ElasticsearchConfiguration            `json:"elasticsearch"`
-	ClusterTopology []ElasticsearchClusterTopologyElement `json:"cluster_topology"`
-	ZoneCount       int                                   `json:"zone_count"`
+	Elasticsearch   ElasticsearchConfiguration              `json:"elasticsearch"`
+	ClusterTopology []ElasticsearchClusterTopologyElement   `json:"cluster_topology"`
+	Transient       TransientElasticsearchPlanConfiguration `json:"transient,omitempty"`
+	ZoneCount       int                                     `json:"zone_count"`
 }
 
 // ElasticsearchClusterPlanInfo defines information about an Elasticsearch cluster plan.
@@ -138,4 +139,19 @@ func DefaultElasticsearchNodeType() *ElasticsearchNodeType {
 		Master: true,
 		ML:     false,
 	}
+}
+
+// ElasticsearchPlanControlConfiguration defines the configuration settings for the timeout and fallback parameters.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchPlanControlConfiguration
+type ElasticsearchPlanControlConfiguration struct {
+	// Commenting because default is calculated based on cluster size and is
+	// typically higher than configured provider timeout.
+	// Timeout int64 `json:"timeout"`
+}
+
+// TransientElasticsearchPlanConfiguration defines the configuration parameters that control how the plan is applied.
+// For example, the Elasticsearch cluster topology and Elasticsearch settings.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#TransientElasticsearchPlanConfiguration
+type TransientElasticsearchPlanConfiguration struct {
+	PlanConfiguration ElasticsearchPlanControlConfiguration `json:"plan_configuration"`
 }

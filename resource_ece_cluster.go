@@ -358,6 +358,8 @@ func resourceECEClusterDelete(d *schema.ResourceData, meta interface{}) error {
 }
 
 func expandClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *ElasticsearchClusterPlan, err error) {
+	//client := meta.(*ECEClient)
+
 	nodeType, err := expandNodeType(d, meta)
 	if err != nil {
 		return nil, err
@@ -375,6 +377,13 @@ func expandClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *E
 				ZoneCount:        d.Get("zone_count").(int),
 			},
 		},
+		// Commenting because the default is calculated based on cluster size and is
+		// typically higher than the configured provider timeout.
+		// Transient: TransientElasticsearchPlanConfiguration{
+		// 	PlanConfiguration: ElasticsearchPlanControlConfiguration{
+		// 		Timeout: int64(client.timeout),
+		// 	},
+		// },
 	}
 
 	return clusterPlan, nil
