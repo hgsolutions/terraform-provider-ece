@@ -24,7 +24,7 @@ resource "ece_cluster" "test_cluster" {
 
 output "test_cluster_id" {
   value       = "${ece_cluster.test_cluster.id}"
-  description = "The ID of the cluster cluster"
+  description = "The ID of the cluster"
 }
 
 output "test_cluster_name" {
