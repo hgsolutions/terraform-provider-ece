@@ -18,10 +18,8 @@ func resourceECECluster() *schema.Resource {
 		Delete: resourceECEClusterDelete,
 		Schema: map[string]*schema.Schema{
 			"name": &schema.Schema{
-				Type: schema.TypeString,
-				// Unsure if we need this set to true here. If a change occurs in the body/json, can an update happen or does
-				// the cluster need to be deleted and recreated?
-				ForceNew:    false, // https://github.com/hashicorp/terraform/blob/master/helper/schema/schema.go#L184
+				Type:        schema.TypeString,
+				ForceNew:    false,
 				Required:    true,
 				Description: "The name of the cluster",
 			},
@@ -253,7 +251,7 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	if resp.StatusCode == 404 {
-		return fmt.Errorf("%q: Cluster ID was not found: ", clusterID)
+		return fmt.Errorf("%q: cluster ID was not found for update", clusterID)
 	}
 
 	if d.HasChange("name") {
@@ -288,8 +286,47 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	// TODO: A plan may fail to update the cluster even if the update is accepted. Get the latest cluster
-	// plan and ensure it matches the desired plan before indicating success of the update.
+	// Confirm that the update plan was successfully applied.
+	resp, err = client.GetClusterPlanActivity(clusterID)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == 404 {
+		return fmt.Errorf("%q: cluster ID was not found after update", clusterID)
+	}
+
+	var clusterPlansInfo ElasticsearchClusterPlansInfo
+	err = json.NewDecoder(resp.Body).Decode(&clusterPlansInfo)
+	if err != nil {
+		return err
+	}
+
+	if !clusterPlansInfo.Current.Healthy {
+		var logMessages interface{}
+		failedLogMessages := make([]ClusterPlanStepLogMessageInfo, 0)
+		// Attempt to find the failed step in the plan.
+		if clusterPlansInfo.Current.PlanAttemptLog != nil {
+			for _, stepInfo := range clusterPlansInfo.Current.PlanAttemptLog {
+				if stepInfo.Status != "success" {
+					for _, logMessageInfo := range stepInfo.InfoLog {
+						failedLogMessages = append(failedLogMessages, logMessageInfo)
+					}
+				}
+			}
+		}
+
+		logMessages, err := json.MarshalIndent(failedLogMessages, "", " ")
+		if err != nil {
+			log.Printf("[DEBUG] Error marshalling log messages to JSON: %v\n", err)
+
+			logMessages = failedLogMessages
+		} else {
+			logMessages = string(logMessages.([]byte))
+		}
+
+		return fmt.Errorf("%q: cluster update failed: %v", clusterID, logMessages)
+	}
 
 	d.Partial(false)
 

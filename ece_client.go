@@ -201,6 +201,36 @@ func (c *ECEClient) GetClusterPlan(id string) (resp *http.Response, err error) {
 	return resp, nil
 }
 
+// GetClusterPlanActivity returns the active and historical plan information for the Elasticsearch cluster.
+func (c *ECEClient) GetClusterPlanActivity(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] GetClusterPlanActivity ID: %s\n", id)
+
+	// GET /api/v1/clusters/elasticsearch/{cluster_id}/plan/activity
+	resourceURL := c.url + eceResource + "/" + id + "/plan/activity"
+	log.Printf("[DEBUG] GetClusterPlanActivity Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("GET", resourceURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	req.SetBasicAuth(c.username, c.password)
+
+	resp, err = c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] GetClusterPlanActivity response: %v\n", resp)
+
+	if resp.StatusCode != 200 && resp.StatusCode != 404 {
+		respBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%q: cluster plan activity could not be retrieved: %v", id, string(respBytes))
+	}
+
+	return resp, nil
+}
+
 // GetResponseBodyAsJSON returns a response body as a JSON document.
 func (c *ECEClient) GetResponseBodyAsJSON(resp *http.Response) (jsonResponse interface{}, err error) {
 	err = json.NewDecoder(resp.Body).Decode(&jsonResponse)

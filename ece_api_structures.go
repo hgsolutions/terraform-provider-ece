@@ -27,6 +27,27 @@ type ClusterMetadataSettings struct {
 	ClusterName string `json:"name"`
 }
 
+// ClusterPlanStepInfo defines information about a step in a plan.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ClusterPlanStepInfo
+type ClusterPlanStepInfo struct {
+	Completed  string                          `json:"completed"`
+	DurationMS int64                           `json:"duration_in_millis"`
+	InfoLog    []ClusterPlanStepLogMessageInfo `json:"info_log"`
+	Stage      string                          `json:"stage"`
+	Started    string                          `json:"started"`
+	Status     string                          `json:"status"`
+	StepID     string                          `json:"step_id"`
+}
+
+// ClusterPlanStepLogMessageInfo defines the log message from a specified stage of an executed step in a plan.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ClusterPlanStepLogMessageInfo
+type ClusterPlanStepLogMessageInfo struct {
+	DeltaMS   int64  `json:"delta_in_millis"`
+	Message   string `json:"message"`
+	Stage     string `json:"stage"`
+	Timestamp string `json:"timestamp"`
+}
+
 // ClusterTopologyInfo defines the topology for Elasticsearch clusters, multiple Kibana instances, or multiple APM Servers.
 // The ClusterTopologyInfo also includes the instances and containers, and where they are located.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ClusterTopologyInfo
@@ -64,8 +85,14 @@ type ElasticsearchClusterPlan struct {
 // ElasticsearchClusterPlanInfo defines information about an Elasticsearch cluster plan.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterPlanInfo
 type ElasticsearchClusterPlanInfo struct {
-	Healthy bool                     `json:"healthy"`
-	Plan    ElasticsearchClusterPlan `json:"plan"`
+	AttemptEndTime   string                   `json:"attempt_end_time"`
+	AttemptStartTime string                   `json:"attempt_start_time"`
+	Healthy          bool                     `json:"healthy"`
+	Plan             ElasticsearchClusterPlan `json:"plan"`
+	PlanAttemptID    string                   `json:"plan_attempt_id"`
+	PlanAttemptLog   []ClusterPlanStepInfo    `json:"plan_attempt_log"`
+	PlanAttemptName  string                   `json:"plan_attempt_name"`
+	PlanEndTime      string                   `json:"plan_end_time"`
 }
 
 // ElasticsearchClusterPlansInfo defines information about the current, pending, and past Elasticsearch cluster plans.
