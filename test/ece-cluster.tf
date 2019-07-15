@@ -7,19 +7,37 @@ provider "ece" {
 }
 
 resource "ece_cluster" "test_cluster" {
-  name                  = "Test Cluster 42"
-  elasticsearch_version = "7.2.0"
-  memory_per_node       = 1024
-  node_count_per_zone   = 1
+  cluster_name = "Test Cluster 42"
 
-  node_type {
-    data   = true
-    master = true
-    ingest = true
-    ml     = false
+  // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterPlan
+  plan {
+    // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchConfiguration
+    elasticsearch {
+      version = "7.2.0"
+    }
+
+    // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterTopologyElement
+    cluster_topology {
+      memory_per_node = 1024
+
+      // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchNodeType
+      node_type {
+        master = true
+        data   = false
+        ingest = true
+      }
+    }
+
+    cluster_topology {
+      memory_per_node = 1024
+
+      node_type {
+        master = false
+        data   = true
+        ingest = true
+      }
+    }
   }
-
-  zone_count = 1
 }
 
 output "test_cluster_id" {
@@ -28,33 +46,28 @@ output "test_cluster_id" {
 }
 
 output "test_cluster_name" {
-  value       = "${ece_cluster.test_cluster.name}"
+  value       = "${ece_cluster.test_cluster.cluster_name}"
   description = "The name of the cluster"
 }
 
 output "test_cluster_elasticsearch_version" {
-  value       = "${ece_cluster.test_cluster.elasticsearch_version}"
-  description = "The elasticsearch version for the cluster"
+  value       = "${ece_cluster.test_cluster.plan.0.elasticsearch.0.version}"
+  description = "The elasticsearch version of the cluster"
 }
 
-output "test_cluster_memory_per_node" {
-  value       = "${ece_cluster.test_cluster.memory_per_node}"
-  description = "The memory per node for the cluster"
+output "test_cluster_topology" {
+  value       = "${ece_cluster.test_cluster.plan.0.cluster_topology}"
+  description = "The topology of the cluster."
 }
 
-output "test_cluster_node_count_per_zone" {
-  value       = "${ece_cluster.test_cluster.node_count_per_zone}"
-  description = "The node count per zone for the cluster"
+output "test_cluster_topology_0_node_count_per_zone" {
+  value       = "${ece_cluster.test_cluster.plan.0.cluster_topology.0.node_count_per_zone}"
+  description = "The node count per zone of first topology element in the cluster"
 }
 
-output "test_cluster_node_type" {
-  value       = "${ece_cluster.test_cluster.node_type}"
-  description = "The node type for the cluster"
-}
-
-output "test_cluster_zone_count" {
-  value       = "${ece_cluster.test_cluster.zone_count}"
-  description = "The zone count for the cluster"
+output "test_cluster_topology_1_memory_per_node" {
+  value       = "${ece_cluster.test_cluster.plan.0.cluster_topology.1.memory_per_node}"
+  description = "The memory per node for the second topology element in the cluster"
 }
 
 output "test_cluster_username" {

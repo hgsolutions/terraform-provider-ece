@@ -17,20 +17,20 @@ const jsonContentType = "application/json"
 
 // ECEClient is a client used for interactions with the ECE API.
 type ECEClient struct {
-	// httpClient specifies the HTTP client that should be used for ECE API calls.
-	httpClient *http.Client
+	// HTTPClient specifies the HTTP client that should be used for ECE API calls.
+	HTTPClient *http.Client
 
-	// url specifies the base URL for the ECE API.
-	url string
+	// BaseURL specifies the base URL for the ECE API.
+	BaseURL string
 
-	// username specifies the username to use for basic authentication.
-	username string
+	// Username specifies the Username to use for basic authentication.
+	Username string
 
-	// password specifies the password to use for basic authentication.
-	password string
+	// Password specifies the Password to use for basic authentication.
+	Password string
 
-	// timeout in seconds for resource operations.
-	timeout int
+	// Timeout in seconds for resource operations.
+	Timeout int
 }
 
 // CreateCluster creates a new ECE cluster using the specified create request.
@@ -68,7 +68,7 @@ func (c *ECEClient) CreateCluster(createClusterRequest CreateElasticsearchCluste
 	jsonString := string(jsonData)
 	body := strings.NewReader(jsonString)
 
-	resourceURL := c.url + eceResource
+	resourceURL := c.BaseURL + eceResource
 	log.Printf("[DEBUG] CreateCluster Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("POST", resourceURL, body)
 	if err != nil {
@@ -76,9 +76,9 @@ func (c *ECEClient) CreateCluster(createClusterRequest CreateElasticsearchCluste
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.username, c.password)
+	req.SetBasicAuth(c.Username, c.Password)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (c *ECEClient) CreateCluster(createClusterRequest CreateElasticsearchCluste
 func (c *ECEClient) DeleteCluster(id string) (resp *http.Response, err error) {
 	log.Printf("[DEBUG] DeleteCluster ID: %s\n", id)
 
-	resourceURL := c.url + eceResource + "/" + id
+	resourceURL := c.BaseURL + eceResource + "/" + id
 	log.Printf("[DEBUG] DeleteCluster Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("DELETE", resourceURL, nil)
 	if err != nil {
@@ -125,9 +125,9 @@ func (c *ECEClient) DeleteCluster(id string) (resp *http.Response, err error) {
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.username, c.password)
+	req.SetBasicAuth(c.Username, c.Password)
 
-	resp, err = c.httpClient.Do(req)
+	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func (c *ECEClient) DeleteCluster(id string) (resp *http.Response, err error) {
 func (c *ECEClient) GetCluster(id string) (resp *http.Response, err error) {
 	log.Printf("[DEBUG] GetCluster ID: %s\n", id)
 
-	resourceURL := c.url + eceResource + "/" + id
+	resourceURL := c.BaseURL + eceResource + "/" + id
 	log.Printf("[DEBUG] GetCluster Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("GET", resourceURL, nil)
 	if err != nil {
@@ -154,9 +154,9 @@ func (c *ECEClient) GetCluster(id string) (resp *http.Response, err error) {
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.username, c.password)
+	req.SetBasicAuth(c.Username, c.Password)
 
-	resp, err = c.httpClient.Do(req)
+	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (c *ECEClient) GetClusterPlan(id string) (resp *http.Response, err error) {
 	log.Printf("[DEBUG] GetClusterPlan ID: %s\n", id)
 
 	// GET /api/v1/clusters/elasticsearch/{cluster_id}/plan
-	resourceURL := c.url + eceResource + "/" + id + "/plan"
+	resourceURL := c.BaseURL + eceResource + "/" + id + "/plan"
 	log.Printf("[DEBUG] GetClusterPlan Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("GET", resourceURL, nil)
 	if err != nil {
@@ -184,9 +184,9 @@ func (c *ECEClient) GetClusterPlan(id string) (resp *http.Response, err error) {
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.username, c.password)
+	req.SetBasicAuth(c.Username, c.Password)
 
-	resp, err = c.httpClient.Do(req)
+	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func (c *ECEClient) GetClusterPlanActivity(id string) (resp *http.Response, err 
 	log.Printf("[DEBUG] GetClusterPlanActivity ID: %s\n", id)
 
 	// GET /api/v1/clusters/elasticsearch/{cluster_id}/plan/activity
-	resourceURL := c.url + eceResource + "/" + id + "/plan/activity"
+	resourceURL := c.BaseURL + eceResource + "/" + id + "/plan/activity"
 	log.Printf("[DEBUG] GetClusterPlanActivity Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("GET", resourceURL, nil)
 	if err != nil {
@@ -214,9 +214,9 @@ func (c *ECEClient) GetClusterPlanActivity(id string) (resp *http.Response, err 
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.username, c.password)
+	req.SetBasicAuth(c.Username, c.Password)
 
-	resp, err = c.httpClient.Do(req)
+	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +271,7 @@ func (c *ECEClient) UpdateCluster(id string, clusterPlan ElasticsearchClusterPla
 	jsonString := string(jsonData)
 	body := strings.NewReader(jsonString)
 
-	resourceURL := c.url + eceResource + "/" + id + "/plan"
+	resourceURL := c.BaseURL + eceResource + "/" + id + "/plan"
 	log.Printf("[DEBUG] UpdateCluster Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("POST", resourceURL, body)
 	if err != nil {
@@ -279,9 +279,9 @@ func (c *ECEClient) UpdateCluster(id string, clusterPlan ElasticsearchClusterPla
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.username, c.password)
+	req.SetBasicAuth(c.Username, c.Password)
 
-	resp, err = c.httpClient.Do(req)
+	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +309,7 @@ func (c *ECEClient) UpdateClusterMetadata(id string, metadata ClusterMetadataSet
 	body := strings.NewReader(jsonString)
 
 	// PATCH /api/v1/clusters/elasticsearch/{cluster_id}/metadata/settings
-	resourceURL := c.url + eceResource + "/" + id + "/metadata/settings"
+	resourceURL := c.BaseURL + eceResource + "/" + id + "/metadata/settings"
 	log.Printf("[DEBUG] UpdateClusterMetadata Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("PATCH", resourceURL, body)
 	if err != nil {
@@ -317,9 +317,9 @@ func (c *ECEClient) UpdateClusterMetadata(id string, metadata ClusterMetadataSet
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.username, c.password)
+	req.SetBasicAuth(c.Username, c.Password)
 
-	resp, err = c.httpClient.Do(req)
+	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +338,7 @@ func (c *ECEClient) UpdateClusterMetadata(id string, metadata ClusterMetadataSet
 func (c *ECEClient) ShutdownCluster(id string) (resp *http.Response, err error) {
 	log.Printf("[DEBUG] ShutdownCluster ID: %s\n", id)
 
-	resourceURL := c.url + eceResource + "/" + id + "/_shutdown"
+	resourceURL := c.BaseURL + eceResource + "/" + id + "/_shutdown"
 	log.Printf("[DEBUG] Shutdown resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("POST", resourceURL, nil)
 	if err != nil {
@@ -346,9 +346,9 @@ func (c *ECEClient) ShutdownCluster(id string) (resp *http.Response, err error) 
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.username, c.password)
+	req.SetBasicAuth(c.Username, c.Password)
 
-	resp, err = c.httpClient.Do(req)
+	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +365,7 @@ func (c *ECEClient) ShutdownCluster(id string) (resp *http.Response, err error) 
 
 // WaitForStatus waits for a cluster to enter the specified status.
 func (c *ECEClient) WaitForStatus(id string, status string) error {
-	timeoutSeconds := time.Second * time.Duration(c.timeout)
+	timeoutSeconds := time.Second * time.Duration(c.Timeout)
 	log.Printf("[DEBUG] WaitForStatus will wait for %v seconds for '%s' status for cluster ID: %s\n", timeoutSeconds, status, id)
 
 	return resource.Retry(timeoutSeconds, func() *resource.RetryError {
@@ -396,7 +396,7 @@ func (c *ECEClient) WaitForStatus(id string, status string) error {
 
 // WaitForShutdown waits for a cluster to shutdown.
 func (c *ECEClient) WaitForShutdown(id string) error {
-	timeoutSeconds := time.Second * time.Duration(c.timeout)
+	timeoutSeconds := time.Second * time.Duration(c.Timeout)
 	log.Printf("[DEBUG] WaitForShutdown will wait for %v seconds for shutdown of cluster ID: %s\n", timeoutSeconds, id)
 
 	return resource.Retry(timeoutSeconds, func() *resource.RetryError {

@@ -77,8 +77,8 @@ type ElasticsearchClusterInfo struct {
 // ElasticsearchClusterPlan defines the plan for an Elasticsearch cluster.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterPlan
 type ElasticsearchClusterPlan struct {
-	Elasticsearch   ElasticsearchConfiguration              `json:"elasticsearch"`
 	ClusterTopology []ElasticsearchClusterTopologyElement   `json:"cluster_topology"`
+	Elasticsearch   ElasticsearchConfiguration              `json:"elasticsearch"`
 	Transient       TransientElasticsearchPlanConfiguration `json:"transient,omitempty"`
 	ZoneCount       int                                     `json:"zone_count"`
 }
@@ -113,6 +113,16 @@ type ElasticsearchClusterTopologyElement struct {
 	NodeCountPerZone int                   `json:"node_count_per_zone"`
 	NodeType         ElasticsearchNodeType `json:"node_type"`
 	ZoneCount        int                   `json:"zone_count"`
+}
+
+// DefaultElasticsearchClusterTopologyElement returns a new ElasticsearchClusterTopologyElement with default values.
+func DefaultElasticsearchClusterTopologyElement() *ElasticsearchClusterTopologyElement {
+	return &ElasticsearchClusterTopologyElement{
+		MemoryPerNode:    1024,
+		NodeCountPerZone: 1,
+		NodeType:         *DefaultElasticsearchNodeType(),
+		ZoneCount:        1,
+	}
 }
 
 // ElasticsearchConfiguration defines the Elasticsearch cluster settings.

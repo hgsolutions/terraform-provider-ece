@@ -92,11 +92,11 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	httpClient := getHTTPClient(d)
 
 	eceClient := &ECEClient{
-		httpClient: httpClient,
-		url:        rawURL,
-		username:   username,
-		password:   password,
-		timeout:    timeout,
+		HTTPClient: httpClient,
+		BaseURL:    rawURL,
+		Username:   username,
+		Password:   password,
+		Timeout:    timeout,
 	}
 
 	return eceClient, nil

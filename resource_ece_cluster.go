@@ -11,79 +11,119 @@ import (
 )
 
 func resourceECECluster() *schema.Resource {
+	// NOTE: Several of the aggregate schema resources below would better be mapped as TypeMap,
+	// but currently TypeMap cannot be used for non-string values due to this bug:
+	// https://github.com/hashicorp/terraform/issues/15327
+	// As a result, I used TypeList with a MaxValue of 1, matching what is done with the AWS
+	// provider for Elasticsearch domains. See the following for examples:
+	// github.com/terraform-providers/terraform-provider-aws/aws/resource_aws_elasticsearch_domain.go
+
 	return &schema.Resource{
 		Create: resourceECEClusterCreate,
 		Read:   resourceECEClusterRead,
 		Update: resourceECEClusterUpdate,
 		Delete: resourceECEClusterDelete,
 		Schema: map[string]*schema.Schema{
-			"name": &schema.Schema{
+			"cluster_name": &schema.Schema{
 				Type:        schema.TypeString,
+				Description: "The name of the cluster.",
 				ForceNew:    false,
 				Required:    true,
-				Description: "The name of the cluster",
 			},
-			"elasticsearch_version": &schema.Schema{
-				Type:        schema.TypeString,
+			"plan": {
+				Type:        schema.TypeList,
+				Description: "The plan for the Elasticsearch cluster.",
 				ForceNew:    false,
 				Required:    true,
-				Description: "The version of the Elasticsearch cluster (must be one of the ECE supported versions).",
-			},
-			"memory_per_node": &schema.Schema{
-				Type:        schema.TypeInt,
-				ForceNew:    false,
-				Optional:    true,
-				Default:     2048,
-				Description: "The memory capacity in MB for each node of this type built in each zone. The default is 2048.",
-			},
-			"node_count_per_zone": &schema.Schema{
-				Type:        schema.TypeInt,
-				ForceNew:    false,
-				Optional:    true,
-				Default:     1,
-				Description: "The number of nodes of this type that are allocated within each zone. The default is 1.",
-			},
-			"node_type": {
-				Type:        schema.TypeSet,
-				Description: "Controls the combinations of Elasticsearch node types. By default, the Elasticsearch node is master eligible, can hold data, and run ingest pipelines.",
-				ForceNew:    false,
-				Optional:    true,
 				MaxItems:    1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"data": {
-							Type:        schema.TypeBool,
+						"cluster_topology": {
+							Type:        schema.TypeList,
+							Description: "The topology of the Elasticsearch nodes, including the number, capacity, and type of nodes, and where they can be allocated.",
 							Optional:    true,
-							Default:     true,
-							Description: "Defines whether this node can hold data. The default is true.",
+							Computed:    false,
+							MinItems:    1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"memory_per_node": &schema.Schema{
+										Type:        schema.TypeInt,
+										Description: "The memory capacity in MB for each node of this type built in each zone. The default is 2048.",
+										ForceNew:    false,
+										Optional:    true,
+										Default:     1024,
+									},
+									"node_count_per_zone": &schema.Schema{
+										Type:        schema.TypeInt,
+										Description: "The number of nodes of this type that are allocated within each zone. The default is 1.",
+										ForceNew:    false,
+										Optional:    true,
+										Default:     1,
+									},
+									"node_type": {
+										Type:        schema.TypeList,
+										Description: "Controls the combinations of Elasticsearch node types. By default, the Elasticsearch node is master eligible, can hold data, and run ingest pipelines.",
+										ForceNew:    false,
+										Optional:    true,
+										MaxItems:    1,
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"data": {
+													Type:        schema.TypeBool,
+													Description: "Defines whether this node can hold data. The default is true.",
+													Optional:    true,
+													Default:     true,
+												},
+												"ingest": {
+													Type:        schema.TypeBool,
+													Description: "Defines whether this node can run an ingest pipeline. The default is true.",
+													Optional:    true,
+													Default:     true,
+												},
+												"master": {
+													Type:        schema.TypeBool,
+													Description: "Defines whether this node can be elected master. The default is true.",
+													Optional:    true,
+													Default:     true,
+												},
+												"ml": {
+													Type:        schema.TypeBool,
+													Description: "Defines whether this node can run ml jobs, valid only for versions 5.4.0 or greater. Not supported in OSS ECE. The default is false.",
+													Optional:    true,
+													Default:     false,
+												},
+											},
+										},
+									},
+									"zone_count": &schema.Schema{
+										Type:        schema.TypeInt,
+										ForceNew:    false,
+										Optional:    true,
+										Default:     1,
+										Description: "The default number of zones in which data nodes will be placed. The default is 1.",
+									},
+								},
+							},
 						},
-						"ingest": {
-							Type:        schema.TypeBool,
-							Optional:    true,
-							Default:     true,
-							Description: "Defines whether this node can run an ingest pipeline. The default is true.",
-						},
-						"master": {
-							Type:        schema.TypeBool,
-							Optional:    true,
-							Default:     true,
-							Description: "Defines whether this node can be elected master. The default is true.",
-						},
-						"ml": {
-							Type:        schema.TypeBool,
-							Optional:    true,
-							Default:     false,
-							Description: "Defines whether this node can run ml jobs, valid only for versions 5.4.0 or greater. The default is false.",
+						"elasticsearch": {
+							Type:        schema.TypeList,
+							Description: "The Elasticsearch cluster settings.",
+							ForceNew:    false,
+							Required:    true,
+							MaxItems:    1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"version": &schema.Schema{
+										Type:        schema.TypeString,
+										Description: "The version of the Elasticsearch cluster (must be one of the ECE supported versions).",
+										ForceNew:    false,
+										Required:    true,
+									},
+								},
+							},
 						},
 					},
 				},
-			},
-			"zone_count": &schema.Schema{
-				Type:        schema.TypeInt,
-				ForceNew:    false,
-				Optional:    true,
-				Default:     1,
-				Description: "The default number of zones in which data nodes will be placed. The default is 1.",
 			},
 			"elasticsearch_username": &schema.Schema{
 				Type:        schema.TypeString,
@@ -105,9 +145,7 @@ func resourceECECluster() *schema.Resource {
 func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 
-	// TODO: Consider whether any other settings are required for v1 of the provider. Kibana cluster?
-
-	clusterName := d.Get("name").(string)
+	clusterName := d.Get("cluster_name").(string)
 	log.Printf("[DEBUG] Creating cluster with name: %s\n", clusterName)
 
 	clusterPlan, err := expandClusterPlan(d, meta)
@@ -172,66 +210,12 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	d.Set("name", clusterInfo.ClusterName)
+	d.Set("cluster_name", clusterInfo.ClusterName)
 
-	currentPlan := clusterInfo.PlanInfo.Current.Plan
-
-	err = d.Set("elasticsearch_version", currentPlan.Elasticsearch.Version)
+	plan := flattenClusterPlan(clusterInfo)
+	d.Set("plan", plan)
 	if err != nil {
 		return err
-	}
-
-	// NOTE: This property appears as deprecated in the ECE API documentation, recommending use of the zone count from the
-	// ElasticsearchClusterTopologyElement instead. However, zone count is not returned for ElasticsearchClusterTopologyElement
-	// in the current version of ECE (2.2.3). To support either location, the zone count is used from cluster plan unless the
-	// cluster topology element has a non-zero value.
-	// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterPlan
-	zoneCount := currentPlan.ZoneCount
-
-	if len(currentPlan.ClusterTopology) > 0 {
-		clusterTopology := currentPlan.ClusterTopology[0]
-
-		err = d.Set("memory_per_node", clusterTopology.MemoryPerNode)
-		if err != nil {
-			return err
-		}
-
-		err = d.Set("node_count_per_zone", clusterTopology.NodeCountPerZone)
-		if err != nil {
-			return err
-		}
-
-		// See note above about clusterPlan.ZoneCount.
-		if clusterTopology.ZoneCount > 0 {
-			zoneCount = clusterTopology.ZoneCount
-		}
-	}
-
-	err = d.Set("zone_count", zoneCount)
-	if err != nil {
-		return err
-	}
-
-	if len(clusterInfo.Topology.Instances) > 0 {
-		instance := clusterInfo.Topology.Instances[0]
-
-		nodeType := &ElasticsearchNodeType{}
-
-		if instance.ServiceRoles != nil {
-			nodeTypeMap := make(map[string]interface{}, len(instance.ServiceRoles))
-			for _, s := range instance.ServiceRoles {
-				nodeTypeMap[s] = true
-			}
-
-			expandNodeTypeFromMap(nodeType, nodeTypeMap)
-		}
-
-		flatNodeType := flattenNodeType(nodeType)
-
-		err = d.Set("node_type", flatNodeType)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -254,9 +238,9 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("%q: cluster ID was not found for update", clusterID)
 	}
 
-	if d.HasChange("name") {
+	if d.HasChange("cluster_name") {
 		metadata := ClusterMetadataSettings{
-			ClusterName: d.Get("name").(string),
+			ClusterName: d.Get("cluster_name").(string),
 		}
 
 		_, err = client.UpdateClusterMetadata(clusterID, metadata)
@@ -265,67 +249,69 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 		}
 	}
 
-	d.SetPartial("name")
+	d.SetPartial("cluster_name")
 
-	clusterPlan, err := expandClusterPlan(d, meta)
-	if err != nil {
-		return err
-	}
+	if d.HasChange("plan") {
+		clusterPlan, err := expandClusterPlan(d, meta)
+		if err != nil {
+			return err
+		}
 
-	_, err = client.UpdateCluster(clusterID, *clusterPlan)
-	if err != nil {
-		return err
-	}
+		_, err = client.UpdateCluster(clusterID, *clusterPlan)
+		if err != nil {
+			return err
+		}
 
-	// Wait for the cluster plan to be initiated.
-	duration := time.Duration(5) * time.Second // 5 seconds
-	time.Sleep(duration)
+		// Wait for the cluster plan to be initiated.
+		duration := time.Duration(5) * time.Second // 5 seconds
+		time.Sleep(duration)
 
-	err = client.WaitForStatus(clusterID, "started")
-	if err != nil {
-		return err
-	}
+		err = client.WaitForStatus(clusterID, "started")
+		if err != nil {
+			return err
+		}
 
-	// Confirm that the update plan was successfully applied.
-	resp, err = client.GetClusterPlanActivity(clusterID)
-	if err != nil {
-		return err
-	}
+		// Confirm that the update plan was successfully applied.
+		resp, err = client.GetClusterPlanActivity(clusterID)
+		if err != nil {
+			return err
+		}
 
-	if resp.StatusCode == 404 {
-		return fmt.Errorf("%q: cluster ID was not found after update", clusterID)
-	}
+		if resp.StatusCode == 404 {
+			return fmt.Errorf("%q: cluster ID was not found after update", clusterID)
+		}
 
-	var clusterPlansInfo ElasticsearchClusterPlansInfo
-	err = json.NewDecoder(resp.Body).Decode(&clusterPlansInfo)
-	if err != nil {
-		return err
-	}
+		var clusterPlansInfo ElasticsearchClusterPlansInfo
+		err = json.NewDecoder(resp.Body).Decode(&clusterPlansInfo)
+		if err != nil {
+			return err
+		}
 
-	if !clusterPlansInfo.Current.Healthy {
-		var logMessages interface{}
-		failedLogMessages := make([]ClusterPlanStepLogMessageInfo, 0)
-		// Attempt to find the failed step in the plan.
-		if clusterPlansInfo.Current.PlanAttemptLog != nil {
-			for _, stepInfo := range clusterPlansInfo.Current.PlanAttemptLog {
-				if stepInfo.Status != "success" {
-					for _, logMessageInfo := range stepInfo.InfoLog {
-						failedLogMessages = append(failedLogMessages, logMessageInfo)
+		if !clusterPlansInfo.Current.Healthy {
+			var logMessages interface{}
+			failedLogMessages := make([]ClusterPlanStepLogMessageInfo, 0)
+			// Attempt to find the failed step in the plan.
+			if clusterPlansInfo.Current.PlanAttemptLog != nil {
+				for _, stepInfo := range clusterPlansInfo.Current.PlanAttemptLog {
+					if stepInfo.Status != "success" {
+						for _, logMessageInfo := range stepInfo.InfoLog {
+							failedLogMessages = append(failedLogMessages, logMessageInfo)
+						}
 					}
 				}
 			}
+
+			logMessages, err := json.MarshalIndent(failedLogMessages, "", " ")
+			if err != nil {
+				log.Printf("[DEBUG] Error marshalling log messages to JSON: %v\n", err)
+
+				logMessages = failedLogMessages
+			} else {
+				logMessages = string(logMessages.([]byte))
+			}
+
+			return fmt.Errorf("%q: cluster update failed: %v", clusterID, logMessages)
 		}
-
-		logMessages, err := json.MarshalIndent(failedLogMessages, "", " ")
-		if err != nil {
-			log.Printf("[DEBUG] Error marshalling log messages to JSON: %v\n", err)
-
-			logMessages = failedLogMessages
-		} else {
-			logMessages = string(logMessages.([]byte))
-		}
-
-		return fmt.Errorf("%q: cluster update failed: %v", clusterID, logMessages)
 	}
 
 	d.Partial(false)
@@ -358,49 +344,67 @@ func resourceECEClusterDelete(d *schema.ResourceData, meta interface{}) error {
 }
 
 func expandClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *ElasticsearchClusterPlan, err error) {
-	//client := meta.(*ECEClient)
+	clusterPlanMap := d.Get("plan").([]interface{})[0].(map[string]interface{})
 
-	nodeType, err := expandNodeType(d, meta)
-	if err != nil {
-		return nil, err
-	}
+	clusterTopology := expandClusterTopology(clusterPlanMap)
+	elasticsearchConfiguration := expandElasticsearchConfiguration(clusterPlanMap)
 
 	clusterPlan = &ElasticsearchClusterPlan{
-		Elasticsearch: ElasticsearchConfiguration{
-			Version: d.Get("elasticsearch_version").(string),
-		},
-		ClusterTopology: []ElasticsearchClusterTopologyElement{
-			ElasticsearchClusterTopologyElement{
-				MemoryPerNode:    d.Get("memory_per_node").(int),
-				NodeCountPerZone: d.Get("node_count_per_zone").(int),
-				NodeType:         *nodeType,
-				ZoneCount:        d.Get("zone_count").(int),
-			},
-		},
-		// Commenting because the default is calculated based on cluster size and is
-		// typically higher than the configured provider timeout.
-		// Transient: TransientElasticsearchPlanConfiguration{
-		// 	PlanConfiguration: ElasticsearchPlanControlConfiguration{
-		// 		Timeout: int64(client.timeout),
-		// 	},
-		// },
+		Elasticsearch:   elasticsearchConfiguration,
+		ClusterTopology: clusterTopology,
 	}
 
 	return clusterPlan, nil
 }
 
-func expandNodeType(d *schema.ResourceData, meta interface{}) (nodeType *ElasticsearchNodeType, err error) {
-	nodeType = DefaultElasticsearchNodeType()
+func expandClusterTopology(clusterPlanMap map[string]interface{}) []ElasticsearchClusterTopologyElement {
+	inputClusterTopologyMap := clusterPlanMap["cluster_topology"].([]interface{})
+	clusterTopology := make([]ElasticsearchClusterTopologyElement, 0)
 
-	if v, ok := d.GetOk("node_type"); ok {
-		nodeTypeList := v.(*schema.Set).List()
-		for _, vv := range nodeTypeList {
-			nodeTypeMap := vv.(map[string]interface{})
-			expandNodeTypeFromMap(nodeType, nodeTypeMap)
+	for _, t := range inputClusterTopologyMap {
+		elementMap := t.(map[string]interface{})
+		clusterTopologyElement := DefaultElasticsearchClusterTopologyElement()
+		if v, ok := elementMap["memory_per_node"]; ok {
+			clusterTopologyElement.MemoryPerNode = v.(int)
 		}
+
+		if v, ok := elementMap["node_count_per_zone"]; ok {
+			clusterTopologyElement.NodeCountPerZone = v.(int)
+		}
+
+		if v, ok := elementMap["node_type"]; ok {
+			nodeType := DefaultElasticsearchNodeType()
+			nodeTypeMaps := v.([]interface{})
+			if len(nodeTypeMaps) > 0 {
+				expandNodeTypeFromMap(nodeType, nodeTypeMaps[0].(map[string]interface{}))
+			}
+			clusterTopologyElement.NodeType = *nodeType
+		}
+
+		if v, ok := elementMap["zone_count"]; ok {
+			clusterTopologyElement.ZoneCount = v.(int)
+		}
+
+		clusterTopology = append(clusterTopology, *clusterTopologyElement)
 	}
 
-	return nodeType, nil
+	// Create a default cluster topology element if none is provided in the input map.
+	if len(clusterTopology) == 0 {
+		clusterTopology = append(clusterTopology, *DefaultElasticsearchClusterTopologyElement())
+	}
+
+	return clusterTopology
+}
+
+func expandElasticsearchConfiguration(clusterPlanMap map[string]interface{}) ElasticsearchConfiguration {
+	// Get the single elasticsearch element from the plan element.
+	elasticsearchMap := clusterPlanMap["elasticsearch"].([]interface{})[0].(map[string]interface{})
+
+	elasticsearchConfiguration := ElasticsearchConfiguration{
+		Version: elasticsearchMap["version"].(string),
+	}
+
+	return elasticsearchConfiguration
 }
 
 func expandNodeTypeFromMap(nodeType *ElasticsearchNodeType, nodeTypeMap map[string]interface{}) {
@@ -425,24 +429,104 @@ func expandNodeTypeFromMap(nodeType *ElasticsearchNodeType, nodeTypeMap map[stri
 	}
 }
 
-func flattenNodeType(nodeType *ElasticsearchNodeType) []map[string]interface{} {
-	m := make([]map[string]interface{}, 0)
+func flattenClusterPlan(clusterInfo ElasticsearchClusterInfo) []map[string]interface{} {
+	clusterPlanMaps := make([]map[string]interface{}, 1)
 
-	mm := map[string]interface{}{}
+	clusterPlan := clusterInfo.PlanInfo.Current.Plan
 
-	mm["data"] = nodeType.Data
-	log.Printf("[DEBUG] Flattened node_type.data as: %t\n", mm["data"])
+	clusterPlanMap := make(map[string]interface{})
+	clusterPlanMap["cluster_topology"] = flattenClusterTopology(clusterInfo, clusterPlan)
+	clusterPlanMap["elasticsearch"] = flattenElasticsearchConfiguration(clusterPlan.Elasticsearch)
 
-	mm["ingest"] = nodeType.Ingest
-	log.Printf("[DEBUG] Flattened node_type.ingest as: %t\n", mm["ingest"])
+	clusterPlanMaps[0] = clusterPlanMap
 
-	mm["master"] = nodeType.Master
-	log.Printf("[DEBUG] Flattened node_type.master as: %t\n", mm["master"])
+	return clusterPlanMaps
+}
 
-	mm["ml"] = nodeType.ML
-	log.Printf("[DEBUG] Flattened node_type.ml as: %t\n", mm["ml"])
+func flattenClusterTopology(clusterInfo ElasticsearchClusterInfo, clusterPlan ElasticsearchClusterPlan) []map[string]interface{} {
+	topologyMap := make([]map[string]interface{}, 0)
 
-	m = append(m, mm)
+	// NOTE: This property appears as deprecated in the ECE API documentation, recommending use of the zone count from the
+	// ElasticsearchClusterTopologyElement instead. However, zone count is not returned for ElasticsearchClusterTopologyElement
+	// in the current version of ECE (2.2.3). To support either location, the zone count is used from cluster plan unless the
+	// cluster topology element has a non-zero value.
+	// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterPlan
+	defaultZoneCount := clusterPlan.ZoneCount
 
-	return m
+	for i, t := range clusterPlan.ClusterTopology {
+		elementMap := make(map[string]interface{})
+
+		elementMap["memory_per_node"] = t.MemoryPerNode
+		elementMap["node_count_per_zone"] = t.NodeCountPerZone
+
+		elementMap["node_type"] = flattenNodeType(clusterInfo, i)
+
+		// See note above about clusterPlan.ZoneCount.
+		if t.ZoneCount > 0 {
+			elementMap["zone_count"] = t.ZoneCount
+		} else {
+			elementMap["zone_count"] = defaultZoneCount
+		}
+
+		topologyMap = append(topologyMap, elementMap)
+	}
+
+	logJSON("Flattened cluster topology", topologyMap)
+
+	return topologyMap
+}
+
+func flattenElasticsearchConfiguration(configuration ElasticsearchConfiguration) []map[string]interface{} {
+	elasticsearchMaps := make([]map[string]interface{}, 1)
+
+	elasticsearchMap := make(map[string]interface{})
+	elasticsearchMap["version"] = configuration.Version
+
+	elasticsearchMaps[0] = elasticsearchMap
+
+	logJSON("Flattened elasticsearch configuration", elasticsearchMaps)
+
+	return elasticsearchMaps
+}
+
+func flattenNodeType(clusterInfo ElasticsearchClusterInfo, instanceIndex int) map[string]interface{} {
+	nodeTypeMap := make(map[string]interface{})
+
+	if len(clusterInfo.Topology.Instances) > 0 {
+		instance := clusterInfo.Topology.Instances[instanceIndex]
+
+		nodeType := &ElasticsearchNodeType{}
+
+		if instance.ServiceRoles != nil {
+			nodeTypeValues := make(map[string]interface{})
+			for _, s := range instance.ServiceRoles {
+				nodeTypeValues[s] = true
+			}
+
+			expandNodeTypeFromMap(nodeType, nodeTypeValues)
+		}
+
+		nodeTypeMap["data"] = nodeType.Data
+		log.Printf("[DEBUG] Flattened node_type.data as: %t\n", nodeTypeMap["data"])
+
+		nodeTypeMap["ingest"] = nodeType.Ingest
+		log.Printf("[DEBUG] Flattened node_type.ingest as: %t\n", nodeTypeMap["ingest"])
+
+		nodeTypeMap["master"] = nodeType.Master
+		log.Printf("[DEBUG] Flattened node_type.master as: %t\n", nodeTypeMap["master"])
+
+		nodeTypeMap["ml"] = nodeType.ML
+		log.Printf("[DEBUG] Flattened node_type.ml as: %t\n", nodeTypeMap["ml"])
+	}
+
+	return nodeTypeMap
+}
+
+func logJSON(context string, m interface{}) {
+	jsonBytes, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		log.Printf("[DEBUG] %s: error marshalling value as JSON: %s. %v", context, err, m)
+	}
+
+	log.Printf("[DEBUG] %s: %s", context, string(jsonBytes))
 }

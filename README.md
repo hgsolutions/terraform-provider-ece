@@ -12,6 +12,8 @@ See [the docs for more information](https://www.terraform.io/docs/plugins/basics
 
 ## Usage
 
+**NOTE:** Only a subset of the ECE API configuration parameters are currently implemented. See the `CreateElasticsearchClusterRequest` structure in the `ece_api_structures.go` file for the currently supported parameters.
+
 ```tf
 provider "ece" {
   url      = "http://ece-api-url:12400"
@@ -22,19 +24,37 @@ provider "ece" {
 }
 
 resource "ece_cluster" "test_cluster" {
-  name                  = "My Test Cluster"
-  elasticsearch_version = "7.2.0"
-  memory_per_node       = 2048
-  node_count_per_zone   = 1
+  cluster_name = "Test Cluster 42"
 
-  node_type {
-    data   = true
-    ingest = true
-    master = true
-    ml     = false
+  // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterPlan
+  plan {
+    // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchConfiguration
+    elasticsearch {
+      version = "7.2.0"
+    }
+
+    // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterTopologyElement
+    cluster_topology {
+      memory_per_node = 1024
+
+      // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchNodeType
+      node_type {
+        master = true
+        data   = false
+        ingest = true
+      }
+    }
+
+    cluster_topology {
+      memory_per_node = 1024
+
+      node_type {
+        master = false
+        data   = true
+        ingest = true
+      }
+    }
   }
-
-  zone_count = 1
 }
 ```
 
@@ -73,13 +93,13 @@ By default, provider log messages are not written to standard out during provide
 Ensure that this folder is at the following location: `${GOPATH}/src/github.com/Ascendon/terraform-provider-ece`
 
 ```
-cd $GOPATH/src/github.com/Ascendon/terraform-provider-ece
+cd ~/go/src/github.com/Ascendon/terraform-provider-ece
 
 glide install
 
-go build -o releases/terraform-provider-ece
+go build -o releases/terraform-provider-ece_v0.2.1
 
-cp ~/go/src/github.com/Ascendon/terraform-provider-ece/releases/terraform-provider-ece /Users/<username>/.terraform.d/plugins/darwin_amd64/.
+cp releases/terraform-provider-ece_v0.2.1 ~/.terraform.d/plugins/darwin_amd64/.
 ```
 
 ## Contributing
