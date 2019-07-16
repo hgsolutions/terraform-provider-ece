@@ -210,9 +210,11 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
+	log.Printf("[DEBUG] Setting cluster_name: %v\n", clusterInfo.ClusterName)
 	d.Set("cluster_name", clusterInfo.ClusterName)
 
 	plan := flattenClusterPlan(clusterInfo)
+	log.Printf("[DEBUG] Setting cluster plan: %v\n", plan)
 	d.Set("plan", plan)
 	if err != nil {
 		return err
@@ -344,13 +346,17 @@ func resourceECEClusterDelete(d *schema.ResourceData, meta interface{}) error {
 }
 
 func expandClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *ElasticsearchClusterPlan, err error) {
-	clusterPlanMap := d.Get("plan").([]interface{})[0].(map[string]interface{})
+	clusterPlanList := d.Get("plan").([]interface{})
+	clusterPlanMap := clusterPlanList[0].(map[string]interface{})
 
 	clusterTopology := expandClusterTopology(clusterPlanMap)
-	elasticsearchConfiguration := expandElasticsearchConfiguration(clusterPlanMap)
+	elasticsearchConfiguration, err := expandElasticsearchConfiguration(clusterPlanMap)
+	if err != nil {
+		return nil, err
+	}
 
 	clusterPlan = &ElasticsearchClusterPlan{
-		Elasticsearch:   elasticsearchConfiguration,
+		Elasticsearch:   *elasticsearchConfiguration,
 		ClusterTopology: clusterTopology,
 	}
 
@@ -396,15 +402,24 @@ func expandClusterTopology(clusterPlanMap map[string]interface{}) []Elasticsearc
 	return clusterTopology
 }
 
-func expandElasticsearchConfiguration(clusterPlanMap map[string]interface{}) ElasticsearchConfiguration {
+func expandElasticsearchConfiguration(clusterPlanMap map[string]interface{}) (elasticsearchConfiguration *ElasticsearchConfiguration, err error) {
 	// Get the single elasticsearch element from the plan element.
-	elasticsearchMap := clusterPlanMap["elasticsearch"].([]interface{})[0].(map[string]interface{})
+	elasticsearchList := clusterPlanMap["elasticsearch"].([]interface{})
 
-	elasticsearchConfiguration := ElasticsearchConfiguration{
+	if len(elasticsearchList) < 1 {
+		return nil, fmt.Errorf("cluster version is required")
+	}
+
+	elasticsearchMap, ok := elasticsearchList[0].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("cluster version is required")
+	}
+
+	elasticsearchConfiguration = &ElasticsearchConfiguration{
 		Version: elasticsearchMap["version"].(string),
 	}
 
-	return elasticsearchConfiguration
+	return elasticsearchConfiguration, nil
 }
 
 func expandNodeTypeFromMap(nodeType *ElasticsearchNodeType, nodeTypeMap map[string]interface{}) {

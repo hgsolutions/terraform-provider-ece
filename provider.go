@@ -60,7 +60,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeBool,
 				Optional:    true,
 				Default:     false,
-				Description: "Disable SSL verification of API calls.",
+				Description: "Disable certificate verification of API calls.",
 			},
 		},
 
