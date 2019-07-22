@@ -66,8 +66,9 @@ func (c *ECEClient) CreateCluster(createClusterRequest CreateElasticsearchCluste
 	}
 
 	jsonString := string(jsonData)
-	body := strings.NewReader(jsonString)
+	log.Printf("[DEBUG] CreateCluster request body: %s\n", jsonString)
 
+	body := strings.NewReader(jsonString)
 	resourceURL := c.BaseURL + eceResource
 	log.Printf("[DEBUG] CreateCluster Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("POST", resourceURL, body)

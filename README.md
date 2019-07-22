@@ -187,9 +187,9 @@ cd ~/go/src/github.com/Ascendon/terraform-provider-ece
 
 glide install
 
-go build -o releases/terraform-provider-ece_v0.2.1
+go build -o releases/terraform-provider-ece_v0.2.2
 
-cp releases/terraform-provider-ece_v0.2.1 ~/.terraform.d/plugins/darwin_amd64/.
+cp releases/terraform-provider-ece_v0.2.2 ~/.terraform.d/plugins/darwin_amd64/.
 ```
 
 ## Contributing

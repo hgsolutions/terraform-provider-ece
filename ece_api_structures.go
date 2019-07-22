@@ -59,8 +59,17 @@ type ClusterTopologyInfo struct {
 // CreateElasticsearchClusterRequest defines the request body for creating an Elasticsearch cluster.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#CreateElasticsearchClusterRequest
 type CreateElasticsearchClusterRequest struct {
-	ClusterName string                   `json:"cluster_name"`
-	Plan        ElasticsearchClusterPlan `json:"plan"`
+	ClusterName string                                    `json:"cluster_name"`
+	Kibana      *CreateKibanaInCreateElasticsearchRequest `json:"kibana"`
+	Plan        ElasticsearchClusterPlan                  `json:"plan"`
+}
+
+// CreateKibanaInCreateElasticsearchRequest defines the request body for creating a Kibana instance,
+// which is included in the Elasticsearch cluster create request.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#CreateKibanaInCreateElasticsearchRequest
+type CreateKibanaInCreateElasticsearchRequest struct {
+	ClusterName string             `json:"cluster_name"`
+	Plan        *KibanaClusterPlan `json:"plan"`
 }
 
 // ElasticsearchClusterInfo defines the information for an Elasticsearch cluster.
@@ -157,6 +166,50 @@ type ElasticsearchPlanControlConfiguration struct {
 	// Commenting because default is calculated based on cluster size and is
 	// typically higher than configured provider timeout.
 	// Timeout int64 `json:"timeout"`
+}
+
+// KibanaClusterPlan defines the plan for the Kibana instance.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaClusterPlan
+type KibanaClusterPlan struct {
+	ClusterTopology []KibanaClusterTopologyElement `json:"cluster_topology"`
+	Kibana          KibanaConfiguration            `json:"kibana"`
+	ZoneCount       int                            `json:"zone_count"`
+}
+
+// DefaultKibanaClusterPlan returns a new KibanaClusterPlan with default values.
+func DefaultKibanaClusterPlan() *KibanaClusterPlan {
+	return &KibanaClusterPlan{
+		ClusterTopology: []KibanaClusterTopologyElement{*DefaultKibanaClusterTopologyElement()},
+		Kibana:          *DefaultKibanaConfiguration(),
+		ZoneCount:       1,
+	}
+}
+
+// KibanaClusterTopologyElement defines the topology of the Kibana nodes, including the number, capacity, and
+// type of nodes, and where they can be allocated.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaClusterTopologyElement
+type KibanaClusterTopologyElement struct {
+	MemoryPerNode int   `json:"memory_per_node"`
+	ZoneCount     int32 `json:"zone_count"`
+}
+
+// DefaultKibanaClusterTopologyElement returns a new KibanaClusterTopologyElement with default values.
+func DefaultKibanaClusterTopologyElement() *KibanaClusterTopologyElement {
+	return &KibanaClusterTopologyElement{
+		MemoryPerNode: 1024,
+		ZoneCount:     1,
+	}
+}
+
+// KibanaConfiguration defines the Kibana instance settings. When specified at the top level, provides a field-by-field default.
+// When specified at the topology level, provides the override settings.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaConfiguration
+type KibanaConfiguration struct {
+}
+
+// DefaultKibanaConfiguration returns a new KibanaConfiguration with default values.
+func DefaultKibanaConfiguration() *KibanaConfiguration {
+	return &KibanaConfiguration{}
 }
 
 // TransientElasticsearchPlanConfiguration defines the configuration parameters that control how the plan is applied.
