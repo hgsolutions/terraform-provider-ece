@@ -12,8 +12,9 @@ type ClusterCredentials struct {
 // (create/update-plan) request.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ClusterCrudResponse
 type ClusterCrudResponse struct {
-	ElasticsearchClusterID string             `json:"elasticsearch_cluster_id"`
 	Credentials            ClusterCredentials `json:"credentials"`
+	ElasticsearchClusterID string             `json:"elasticsearch_cluster_id"`
+	KibanaClusterID        string             `json:"kibana_cluster_id"`
 }
 
 // ClusterInstanceInfo defines information about each instance in the Elasticsearch cluster.
@@ -68,19 +69,28 @@ type CreateElasticsearchClusterRequest struct {
 // which is included in the Elasticsearch cluster create request.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#CreateKibanaInCreateElasticsearchRequest
 type CreateKibanaInCreateElasticsearchRequest struct {
-	ClusterName string             `json:"cluster_name"`
+	ClusterName string             `json:"cluster_name,omitempty"`
 	Plan        *KibanaClusterPlan `json:"plan"`
+}
+
+// CreateKibanaRequest defines the request body for creating one or more Kibana instances.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#CreateKibanaRequest
+type CreateKibanaRequest struct {
+	ClusterName            string             `json:"cluster_name"`
+	ElasticsearchClusterID string             `json:"elasticsearch_cluster_id"`
+	Plan                   *KibanaClusterPlan `json:"plan"`
 }
 
 // ElasticsearchClusterInfo defines the information for an Elasticsearch cluster.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterInfo
 type ElasticsearchClusterInfo struct {
-	ClusterID   string                        `json:"cluster_id"`
-	ClusterName string                        `json:"cluster_name"`
-	Healthy     bool                          `json:"healthy"`
-	PlanInfo    ElasticsearchClusterPlansInfo `json:"plan_info"`
-	Status      string                        `json:"status"`
-	Topology    ClusterTopologyInfo           `json:"topology"`
+	ClusterID                string                        `json:"cluster_id"`
+	ClusterName              string                        `json:"cluster_name"`
+	Healthy                  bool                          `json:"healthy"`
+	PlanInfo                 ElasticsearchClusterPlansInfo `json:"plan_info"`
+	AssociatedKibanaClusters []KibanaSubClusterInfo        `json:"associated_kibana_clusters"`
+	Status                   string                        `json:"status"`
+	Topology                 ClusterTopologyInfo           `json:"topology"`
 }
 
 // ElasticsearchClusterPlan defines the plan for an Elasticsearch cluster.
@@ -168,12 +178,41 @@ type ElasticsearchPlanControlConfiguration struct {
 	// Timeout int64 `json:"timeout"`
 }
 
+// KibanaClusterInfo defines the top-level object information for a Kibana instance.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaClusterInfo
+type KibanaClusterInfo struct {
+	ClusterID   string `json:"cluster_id"`
+	ClusterName string `json:"cluster_name"`
+	Healthy     bool   `json:"healthy"`
+	Status      string `json:"status"`
+}
+
 // KibanaClusterPlan defines the plan for the Kibana instance.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaClusterPlan
 type KibanaClusterPlan struct {
 	ClusterTopology []KibanaClusterTopologyElement `json:"cluster_topology"`
 	Kibana          KibanaConfiguration            `json:"kibana"`
 	ZoneCount       int                            `json:"zone_count"`
+}
+
+// KibanaClusterPlanInfo defines information about the current, pending, or past Kibana instance plan.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaClusterPlanInfo
+type KibanaClusterPlanInfo struct {
+	AttemptEndTime   string                `json:"attempt_end_time"`
+	AttemptStartTime string                `json:"attempt_start_time"`
+	Healthy          bool                  `json:"healthy"`
+	Plan             KibanaClusterPlan     `json:"plan"`
+	PlanAttemptID    string                `json:"plan_attempt_id"`
+	PlanAttemptLog   []ClusterPlanStepInfo `json:"plan_attempt_log"`
+	PlanAttemptName  string                `json:"plan_attempt_name"`
+	PlanEndTime      string                `json:"plan_end_time"`
+}
+
+// KibanaClusterPlansInfo defines information about the current, pending, or past Kibana instance plans.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaClusterPlansInfo
+type KibanaClusterPlansInfo struct {
+	Current KibanaClusterPlanInfo `json:"current"`
+	Healthy bool                  `json:"healthy"`
 }
 
 // DefaultKibanaClusterPlan returns a new KibanaClusterPlan with default values.
@@ -210,6 +249,13 @@ type KibanaConfiguration struct {
 // DefaultKibanaConfiguration returns a new KibanaConfiguration with default values.
 func DefaultKibanaConfiguration() *KibanaConfiguration {
 	return &KibanaConfiguration{}
+}
+
+// KibanaSubClusterInfo defines information about the Kibana instances associated with the Elasticsearch cluster.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaSubClusterInfo
+type KibanaSubClusterInfo struct {
+	Enabled  bool   `json:"enabled"`
+	KibanaID string `json:"kibana_id"`
 }
 
 // TransientElasticsearchPlanConfiguration defines the configuration parameters that control how the plan is applied.

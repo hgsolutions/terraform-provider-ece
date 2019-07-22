@@ -152,6 +152,11 @@ func resourceECECluster() *schema.Resource {
 				Computed:    true,
 				Description: "The password for the created cluster.",
 			},
+			"kibana_cluster_id": &schema.Schema{
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The ID for the created Kibana cluster.",
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
@@ -175,30 +180,57 @@ func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 		Plan:        *clusterPlan,
 	}
 
-	kibanaRequest, err := expandKibanaRequest(d, meta)
+	kibanaRequest, err := expandKibanaCreateRequest(d, meta)
 	if err != nil {
 		return err
 	} else if kibanaRequest != nil {
 		log.Printf("[DEBUG] Kibana instance will be created: %v\n", *kibanaRequest)
-		createClusterRequest.Kibana = kibanaRequest
+		createClusterRequest.Kibana = &CreateKibanaInCreateElasticsearchRequest{
+			ClusterName: kibanaRequest.ClusterName,
+			Plan:        kibanaRequest.Plan,
+		}
 	}
 
-	crudResponse, err := client.CreateCluster(createClusterRequest)
+	crudResponse, err := client.CreateElasticsearchCluster(createClusterRequest)
 	if err != nil {
 		return err
 	}
 
-	clusterID := crudResponse.ElasticsearchClusterID
-	log.Printf("[DEBUG] Created cluster ID: %s\n", clusterID)
+	elasticsearchClusterID := crudResponse.ElasticsearchClusterID
+	log.Printf("[DEBUG] Created elasticsearch cluster ID: %s\n", elasticsearchClusterID)
 
-	err = client.WaitForStatus(clusterID, "started")
+	err = client.WaitForElasticsearchClusterStatus(elasticsearchClusterID, "started", false)
 	if err != nil {
 		return err
 	}
 
-	d.SetId(clusterID)
+	// Confirm that the elasticsearch creation plan was successfully applied.
+	err = validateElasticsearchClusterPlanActivity(client, elasticsearchClusterID)
+	if err != nil {
+		return err
+	}
+
+	d.SetId(elasticsearchClusterID)
 	d.Set("elasticsearch_username", crudResponse.Credentials.Username)
 	d.Set("elasticsearch_password", crudResponse.Credentials.Password)
+
+	// Wait for the Kibana cluster to be created if it was included in the creation request.
+	kibanaClusterID := crudResponse.KibanaClusterID
+	if kibanaClusterID != "" {
+		err = client.WaitForKibanaClusterStatus(kibanaClusterID, "started", false)
+		if err != nil {
+			return err
+		}
+
+		// Confirm that the Kibana creation plan was successfully applied.
+		err = validateKibanaClusterPlanActivity(client, kibanaClusterID)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("[DEBUG] Created Kibana cluster ID: %s\n", kibanaClusterID)
+		d.Set("kibana_cluster_id", kibanaClusterID)
+	}
 
 	return resourceECEClusterRead(d, meta)
 }
@@ -209,7 +241,7 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 	clusterID := d.Id()
 	log.Printf("[DEBUG] Reading cluster information for cluster ID: %s\n", clusterID)
 
-	resp, err := client.GetCluster(clusterID)
+	resp, err := client.GetElasticsearchCluster(clusterID)
 	if err != nil {
 		return err
 	}
@@ -245,6 +277,15 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
+	if clusterInfo.AssociatedKibanaClusters != nil && len(clusterInfo.AssociatedKibanaClusters) > 0 {
+		kibanaClusterID := clusterInfo.AssociatedKibanaClusters[0].KibanaID
+		log.Printf("[DEBUG] Setting kibana cluster ID: %v\n", plan)
+		d.Set("kibana_cluster_id", kibanaClusterID)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -256,7 +297,7 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 	clusterID := d.Id()
 	log.Printf("[DEBUG] Updating cluster ID: %s\n", clusterID)
 
-	resp, err := client.GetCluster(clusterID)
+	resp, err := client.GetElasticsearchCluster(clusterID)
 	if err != nil {
 		return err
 	}
@@ -270,7 +311,7 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 			ClusterName: d.Get("cluster_name").(string),
 		}
 
-		_, err = client.UpdateClusterMetadata(clusterID, metadata)
+		_, err = client.UpdateElasticsearchClusterMetadata(clusterID, metadata)
 		if err != nil {
 			return err
 		}
@@ -284,7 +325,7 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 			return err
 		}
 
-		_, err = client.UpdateCluster(clusterID, *clusterPlan)
+		_, err = client.UpdateElasticsearchCluster(clusterID, *clusterPlan)
 		if err != nil {
 			return err
 		}
@@ -293,51 +334,24 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 		duration := time.Duration(5) * time.Second // 5 seconds
 		time.Sleep(duration)
 
-		err = client.WaitForStatus(clusterID, "started")
+		err = client.WaitForElasticsearchClusterStatus(clusterID, "started", false)
 		if err != nil {
 			return err
 		}
 
 		// Confirm that the update plan was successfully applied.
-		resp, err = client.GetClusterPlanActivity(clusterID)
+		err = validateElasticsearchClusterPlanActivity(client, clusterID)
 		if err != nil {
 			return err
 		}
+	}
 
-		if resp.StatusCode == 404 {
-			return fmt.Errorf("%q: cluster ID was not found after update", clusterID)
-		}
+	d.SetPartial("plan")
 
-		var clusterPlansInfo ElasticsearchClusterPlansInfo
-		err = json.NewDecoder(resp.Body).Decode(&clusterPlansInfo)
+	if d.HasChange("kibana") {
+		updateKibana(client, clusterID, d, meta)
 		if err != nil {
 			return err
-		}
-
-		if !clusterPlansInfo.Current.Healthy {
-			var logMessages interface{}
-			failedLogMessages := make([]ClusterPlanStepLogMessageInfo, 0)
-			// Attempt to find the failed step in the plan.
-			if clusterPlansInfo.Current.PlanAttemptLog != nil {
-				for _, stepInfo := range clusterPlansInfo.Current.PlanAttemptLog {
-					if stepInfo.Status != "success" {
-						for _, logMessageInfo := range stepInfo.InfoLog {
-							failedLogMessages = append(failedLogMessages, logMessageInfo)
-						}
-					}
-				}
-			}
-
-			logMessages, err := json.MarshalIndent(failedLogMessages, "", " ")
-			if err != nil {
-				log.Printf("[DEBUG] Error marshalling log messages to JSON: %v\n", err)
-
-				logMessages = failedLogMessages
-			} else {
-				logMessages = string(logMessages.([]byte))
-			}
-
-			return fmt.Errorf("%q: cluster update failed: %v", clusterID, logMessages)
 		}
 	}
 
@@ -350,19 +364,8 @@ func resourceECEClusterDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 	clusterID := d.Id()
 
-	// NOTE: A cluster must be successfully _shutdown first before it can be deleted.
-	log.Printf("[DEBUG] Shutting down cluster ID: %s\n", clusterID)
-	_, err := client.ShutdownCluster(clusterID)
-	if err != nil {
-		return err
-	}
-
-	// Wait for cluster shutdown.
-	log.Printf("[DEBUG] Waiting for shutdown of cluster ID: %s\n", clusterID)
-	client.WaitForShutdown(clusterID)
-
 	log.Printf("[DEBUG] Deleting cluster ID: %s\n", clusterID)
-	_, err = client.DeleteCluster(clusterID)
+	_, err := client.DeleteElasticsearchCluster(clusterID)
 	if err != nil {
 		return err
 	}
@@ -447,7 +450,18 @@ func expandElasticsearchConfiguration(clusterPlanMap map[string]interface{}) (el
 	return elasticsearchConfiguration, nil
 }
 
-func expandKibanaRequest(d *schema.ResourceData, meta interface{}) (kibanaRequest *CreateKibanaInCreateElasticsearchRequest, err error) {
+func expandKibanaClusterPlan(d *schema.ResourceData, meta interface{}) (kibanaPlan *KibanaClusterPlan, err error) {
+	kibanaList := d.Get("kibana").([]interface{})
+
+	if kibanaList == nil || len(kibanaList) == 0 {
+		log.Printf("[DEBUG] Kibana configuration not specified. No Kibana plan will be created.\n")
+		return nil, nil
+	}
+
+	return DefaultKibanaClusterPlan(), nil
+}
+
+func expandKibanaCreateRequest(d *schema.ResourceData, meta interface{}) (kibanaRequest *CreateKibanaRequest, err error) {
 	kibanaList := d.Get("kibana").([]interface{})
 
 	if kibanaList == nil || len(kibanaList) == 0 {
@@ -464,9 +478,12 @@ func expandKibanaRequest(d *schema.ResourceData, meta interface{}) (kibanaReques
 		}
 	}
 
-	kibanaPlan := DefaultKibanaClusterPlan()
+	kibanaPlan, err := expandKibanaClusterPlan(d, meta)
+	if err != nil {
+		return nil, err
+	}
 
-	kibanaRequest = &CreateKibanaInCreateElasticsearchRequest{
+	kibanaRequest = &CreateKibanaRequest{
 		ClusterName: kibanaName,
 		Plan:        kibanaPlan,
 	}
@@ -596,4 +613,182 @@ func logJSON(context string, m interface{}) {
 	}
 
 	log.Printf("[DEBUG] %s: %s", context, string(jsonBytes))
+}
+
+func updateKibana(client *ECEClient, clusterID string, d *schema.ResourceData, meta interface{}) error {
+	// Use the Kibana Cluster ID to determine if an existing cluster is being updated/removed
+	// or a new cluster should be created.
+	var kibanaClusterID string
+	v, ok := d.GetOk("kibana_cluster_id")
+	if ok {
+		kibanaClusterID = v.(string)
+	}
+
+	// Create a KibanaCreateRequest from the resource inputs.
+	kibanaRequest, err := expandKibanaCreateRequest(d, meta)
+	if err != nil {
+		return err
+	}
+
+	// If the Kibana cluster ID is empty, Terraform does not know of an existing Kibana cluster.
+	// In this case, if a cluster create request was created from resource inputs, use that
+	// request to create a new Kibana cluster.
+	if kibanaClusterID == "" {
+		if kibanaRequest != nil {
+			// Associate the new Kibana cluster with the elasticsearch cluster.
+			kibanaRequest.ElasticsearchClusterID = clusterID
+
+			// Create a new Kibana cluster.
+			kibanaResponse, err := client.CreateKibanaCluster(*kibanaRequest)
+			if err != nil {
+				return err
+			}
+
+			kibanaClusterID = kibanaResponse.KibanaClusterID
+			log.Printf("[DEBUG] Created Kibana cluster ID: %s\n", kibanaClusterID)
+		}
+	} else {
+		// If the Kibana cluster ID is not empty and a Kibana create request was constructed from
+		// resource inputs, update the existing cluster.
+		if kibanaRequest != nil {
+			// Update the existing Kibana cluster name.
+			metadata := ClusterMetadataSettings{
+				ClusterName: kibanaRequest.ClusterName,
+			}
+
+			_, err = client.UpdateKibanaClusterMetadata(kibanaClusterID, metadata)
+			if err != nil {
+				return err
+			}
+
+			// Update the existing Kibana cluster.
+			_, err = client.UpdateKibanaCluster(kibanaClusterID, kibanaRequest.Plan)
+			if err != nil {
+				return err
+			}
+		} else {
+			// If the Kibana create request is nil but the Kibana cluster ID is not empty, the existing
+			// Kibana cluster should be deleted.
+			_, err = client.DeleteKibanaCluster(kibanaClusterID)
+			if err != nil {
+				return err
+			}
+
+			kibanaClusterID = ""
+			d.Set("kibana_cluster_id", nil)
+		}
+	}
+
+	// If a Kibana cluster was created or updated, wait for the operation to complete and
+	// check for success of the plan activity.
+	if kibanaClusterID != "" {
+		// Wait for the cluster plan to be initiated.
+		duration := time.Duration(5) * time.Second // 5 seconds
+		time.Sleep(duration)
+
+		err = client.WaitForKibanaClusterStatus(kibanaClusterID, "started", false)
+		if err != nil {
+			return err
+		}
+
+		// Confirm that the Kibana update plan was successfully applied.
+		err = validateKibanaClusterPlanActivity(client, kibanaClusterID)
+		if err != nil {
+			return err
+		}
+
+		d.Set("kibana_cluster_id", kibanaClusterID)
+	}
+
+	return nil
+}
+
+func validateElasticsearchClusterPlanActivity(client *ECEClient, clusterID string) error {
+	resp, err := client.GetElasticsearchClusterPlanActivity(clusterID)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == 404 {
+		return fmt.Errorf("%q: cluster ID was not found after update", clusterID)
+	}
+
+	var clusterPlansInfo ElasticsearchClusterPlansInfo
+	err = json.NewDecoder(resp.Body).Decode(&clusterPlansInfo)
+	if err != nil {
+		return err
+	}
+
+	if !clusterPlansInfo.Current.Healthy {
+		var logMessages interface{}
+		failedLogMessages := make([]ClusterPlanStepLogMessageInfo, 0)
+		// Attempt to find the failed step in the plan.
+		if clusterPlansInfo.Current.PlanAttemptLog != nil {
+			for _, stepInfo := range clusterPlansInfo.Current.PlanAttemptLog {
+				if stepInfo.Status != "success" {
+					for _, logMessageInfo := range stepInfo.InfoLog {
+						failedLogMessages = append(failedLogMessages, logMessageInfo)
+					}
+				}
+			}
+		}
+
+		logMessages, err := json.MarshalIndent(failedLogMessages, "", " ")
+		if err != nil {
+			log.Printf("[DEBUG] Error marshalling log messages to JSON: %v\n", err)
+
+			logMessages = failedLogMessages
+		} else {
+			logMessages = string(logMessages.([]byte))
+		}
+
+		return fmt.Errorf("%q: elasticsearch cluster update failed: %v", clusterID, logMessages)
+	}
+
+	return nil
+}
+
+func validateKibanaClusterPlanActivity(client *ECEClient, clusterID string) error {
+	resp, err := client.GetKibanaClusterPlanActivity(clusterID)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == 404 {
+		return fmt.Errorf("%q: cluster ID was not found after update", clusterID)
+	}
+
+	var clusterPlansInfo KibanaClusterPlansInfo
+	err = json.NewDecoder(resp.Body).Decode(&clusterPlansInfo)
+	if err != nil {
+		return err
+	}
+
+	if !clusterPlansInfo.Current.Healthy {
+		var logMessages interface{}
+		failedLogMessages := make([]ClusterPlanStepLogMessageInfo, 0)
+		// Attempt to find the failed step in the plan.
+		if clusterPlansInfo.Current.PlanAttemptLog != nil {
+			for _, stepInfo := range clusterPlansInfo.Current.PlanAttemptLog {
+				if stepInfo.Status != "success" {
+					for _, logMessageInfo := range stepInfo.InfoLog {
+						failedLogMessages = append(failedLogMessages, logMessageInfo)
+					}
+				}
+			}
+		}
+
+		logMessages, err := json.MarshalIndent(failedLogMessages, "", " ")
+		if err != nil {
+			log.Printf("[DEBUG] Error marshalling log messages to JSON: %v\n", err)
+
+			logMessages = failedLogMessages
+		} else {
+			logMessages = string(logMessages.([]byte))
+		}
+
+		return fmt.Errorf("%q: kibana cluster update failed: %v", clusterID, logMessages)
+	}
+
+	return nil
 }

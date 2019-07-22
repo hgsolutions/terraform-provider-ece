@@ -12,7 +12,8 @@ import (
 	"github.com/hashicorp/terraform/helper/resource"
 )
 
-const eceResource = "/api/v1/clusters/elasticsearch"
+const elasticsearchResource = "/api/v1/clusters/elasticsearch"
+const kibanaResource = "/api/v1/clusters/kibana"
 const jsonContentType = "application/json"
 
 // ECEClient is a client used for interactions with the ECE API.
@@ -33,9 +34,9 @@ type ECEClient struct {
 	Timeout int
 }
 
-// CreateCluster creates a new ECE cluster using the specified create request.
-func (c *ECEClient) CreateCluster(createClusterRequest CreateElasticsearchClusterRequest) (crudResponse *ClusterCrudResponse, err error) {
-	log.Printf("[DEBUG] CreateCluster: %v\n", createClusterRequest)
+// CreateElasticsearchCluster creates a new elasticsearch cluster using the specified create request.
+func (c *ECEClient) CreateElasticsearchCluster(createClusterRequest CreateElasticsearchClusterRequest) (crudResponse *ClusterCrudResponse, err error) {
+	log.Printf("[DEBUG] CreateElasticsearchCluster: %v\n", createClusterRequest)
 
 	// Example cluster creation request body.
 	// {
@@ -66,11 +67,11 @@ func (c *ECEClient) CreateCluster(createClusterRequest CreateElasticsearchCluste
 	}
 
 	jsonString := string(jsonData)
-	log.Printf("[DEBUG] CreateCluster request body: %s\n", jsonString)
+	log.Printf("[DEBUG] CreateElasticsearchCluster request body: %s\n", jsonString)
 
 	body := strings.NewReader(jsonString)
-	resourceURL := c.BaseURL + eceResource
-	log.Printf("[DEBUG] CreateCluster Resource URL: %s\n", resourceURL)
+	resourceURL := c.BaseURL + elasticsearchResource
+	log.Printf("[DEBUG] CreateElasticsearchCluster Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("POST", resourceURL, body)
 	if err != nil {
 		return nil, err
@@ -93,7 +94,7 @@ func (c *ECEClient) CreateCluster(createClusterRequest CreateElasticsearchCluste
 	// 	}
 	// }
 
-	log.Printf("[DEBUG] CreateCluster response: %v\n", resp)
+	log.Printf("[DEBUG] CreateElasticsearchCluster response: %v\n", resp)
 
 	respBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -101,10 +102,10 @@ func (c *ECEClient) CreateCluster(createClusterRequest CreateElasticsearchCluste
 	}
 
 	if resp.StatusCode != 201 {
-		return nil, fmt.Errorf("cluster could not be created: %v", string(respBytes))
+		return nil, fmt.Errorf("elasticsearch cluster could not be created: %v", string(respBytes))
 	}
 
-	log.Printf("[DEBUG] CreateCluster response body: %v\n", string(respBytes))
+	log.Printf("[DEBUG] CreateElasticsearchCluster response body: %v\n", string(respBytes))
 
 	err = json.Unmarshal(respBytes, &crudResponse)
 	if err != nil {
@@ -114,12 +115,72 @@ func (c *ECEClient) CreateCluster(createClusterRequest CreateElasticsearchCluste
 	return crudResponse, nil
 }
 
-// DeleteCluster deletes an existing ECE cluster.
-func (c *ECEClient) DeleteCluster(id string) (resp *http.Response, err error) {
-	log.Printf("[DEBUG] DeleteCluster ID: %s\n", id)
+// CreateKibanaCluster creates a new Kibana cluster using the specified create request.
+func (c *ECEClient) CreateKibanaCluster(createKibanaRequest CreateKibanaRequest) (crudResponse *ClusterCrudResponse, err error) {
+	log.Printf("[DEBUG] CreateKibanaCluster: %v\n", createKibanaRequest)
 
-	resourceURL := c.BaseURL + eceResource + "/" + id
-	log.Printf("[DEBUG] DeleteCluster Resource URL: %s\n", resourceURL)
+	jsonData, err := json.Marshal(createKibanaRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := string(jsonData)
+	log.Printf("[DEBUG] CreateKibanaCluster request body: %s\n", jsonString)
+
+	body := strings.NewReader(jsonString)
+	resourceURL := c.BaseURL + kibanaResource
+	log.Printf("[DEBUG] CreateKibanaCluster Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("POST", resourceURL, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	req.SetBasicAuth(c.Username, c.Password)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] CreateKibanaCluster response: %v\n", resp)
+
+	respBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 201 {
+		return nil, fmt.Errorf("kibana cluster could not be created: %v", string(respBytes))
+	}
+
+	log.Printf("[DEBUG] CreateKibanaCluster response body: %v\n", string(respBytes))
+
+	err = json.Unmarshal(respBytes, &crudResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return crudResponse, nil
+}
+
+// DeleteElasticsearchCluster deletes an existing elasticsearch cluster.
+func (c *ECEClient) DeleteElasticsearchCluster(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] DeleteElasticsearchCluster ID: %s\n", id)
+
+	// NOTE: A cluster must be successfully _shutdown first before it can be deleted.
+	log.Printf("[DEBUG] Shutting down cluster ID: %s\n", id)
+	_, err = c.ShutdownElasticsearchCluster(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Wait for cluster shutdown.
+	log.Printf("[DEBUG] Waiting for shutdown of cluster ID: %s\n", id)
+	c.WaitForElasticsearchClusterStatus(id, "stopped", true)
+
+	resourceURL := c.BaseURL + elasticsearchResource + "/" + id
+	log.Printf("[DEBUG] DeleteElasticsearchCluster Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("DELETE", resourceURL, nil)
 	if err != nil {
 		return nil, err
@@ -133,22 +194,62 @@ func (c *ECEClient) DeleteCluster(id string) (resp *http.Response, err error) {
 		return nil, err
 	}
 
-	log.Printf("[DEBUG] DeleteCluster response: %v\n", resp)
+	log.Printf("[DEBUG] DeleteElasticsearchCluster response: %v\n", resp)
 
 	if resp.StatusCode != 200 {
 		respBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("%q: cluster could not be deleted: %v", id, string(respBytes))
+		return nil, fmt.Errorf("%q: elasticsearch cluster could not be deleted: %v", id, string(respBytes))
 	}
 
 	return resp, nil
 }
 
-// GetCluster returns information for an existing ECE cluster.
-func (c *ECEClient) GetCluster(id string) (resp *http.Response, err error) {
-	log.Printf("[DEBUG] GetCluster ID: %s\n", id)
+// DeleteKibanaCluster deletes an existing kibana cluster.
+func (c *ECEClient) DeleteKibanaCluster(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] DeleteKibanaCluster ID: %s\n", id)
 
-	resourceURL := c.BaseURL + eceResource + "/" + id
-	log.Printf("[DEBUG] GetCluster Resource URL: %s\n", resourceURL)
+	// NOTE: A cluster must be successfully _shutdown first before it can be deleted.
+	log.Printf("[DEBUG] Shutting down cluster ID: %s\n", id)
+	_, err = c.ShutdownKibanaCluster(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Wait for cluster shutdown.
+	log.Printf("[DEBUG] Waiting for shutdown of cluster ID: %s\n", id)
+	c.WaitForKibanaClusterStatus(id, "stopped", true)
+
+	resourceURL := c.BaseURL + kibanaResource + "/" + id
+	log.Printf("[DEBUG] DeleteKibanaCluster Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("DELETE", resourceURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	req.SetBasicAuth(c.Username, c.Password)
+
+	resp, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] DeleteKibanaCluster response: %v\n", resp)
+
+	if resp.StatusCode != 200 {
+		respBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%q: kibana cluster could not be deleted: %v", id, string(respBytes))
+	}
+
+	return resp, nil
+}
+
+// GetElasticsearchCluster returns information for an existing elasticsearch cluster.
+func (c *ECEClient) GetElasticsearchCluster(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] GetElasticsearchCluster ID: %s\n", id)
+
+	resourceURL := c.BaseURL + elasticsearchResource + "/" + id
+	log.Printf("[DEBUG] GetElasticsearchCluster Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("GET", resourceURL, nil)
 	if err != nil {
 		return nil, err
@@ -162,23 +263,23 @@ func (c *ECEClient) GetCluster(id string) (resp *http.Response, err error) {
 		return nil, err
 	}
 
-	log.Printf("[DEBUG] GetCluster response: %v\n", resp)
+	log.Printf("[DEBUG] GetElasticsearchCluster response: %v\n", resp)
 
 	if resp.StatusCode != 200 && resp.StatusCode != 404 {
 		respBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("%q: cluster could not be retrieved: %v", id, string(respBytes))
+		return nil, fmt.Errorf("%q: elasticsearch cluster could not be retrieved: %v", id, string(respBytes))
 	}
 
 	return resp, nil
 }
 
-// GetClusterPlan returns the plan for an existing ECE cluster.
-func (c *ECEClient) GetClusterPlan(id string) (resp *http.Response, err error) {
-	log.Printf("[DEBUG] GetClusterPlan ID: %s\n", id)
+// GetElasticsearchClusterPlan returns the plan for an existing elasticsearch cluster.
+func (c *ECEClient) GetElasticsearchClusterPlan(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] GetElasticsearchClusterPlan ID: %s\n", id)
 
 	// GET /api/v1/clusters/elasticsearch/{cluster_id}/plan
-	resourceURL := c.BaseURL + eceResource + "/" + id + "/plan"
-	log.Printf("[DEBUG] GetClusterPlan Resource URL: %s\n", resourceURL)
+	resourceURL := c.BaseURL + elasticsearchResource + "/" + id + "/plan"
+	log.Printf("[DEBUG] GetElasticsearchClusterPlan Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("GET", resourceURL, nil)
 	if err != nil {
 		return nil, err
@@ -192,23 +293,23 @@ func (c *ECEClient) GetClusterPlan(id string) (resp *http.Response, err error) {
 		return nil, err
 	}
 
-	log.Printf("[DEBUG] GetClusterPlan response: %v\n", resp)
+	log.Printf("[DEBUG] GetElasticsearchClusterPlan response: %v\n", resp)
 
 	if resp.StatusCode != 200 && resp.StatusCode != 404 {
 		respBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("%q: cluster plan could not be retrieved: %v", id, string(respBytes))
+		return nil, fmt.Errorf("%q: elasticsearch cluster plan could not be retrieved: %v", id, string(respBytes))
 	}
 
 	return resp, nil
 }
 
-// GetClusterPlanActivity returns the active and historical plan information for the Elasticsearch cluster.
-func (c *ECEClient) GetClusterPlanActivity(id string) (resp *http.Response, err error) {
-	log.Printf("[DEBUG] GetClusterPlanActivity ID: %s\n", id)
+// GetElasticsearchClusterPlanActivity returns the active and historical plan information for an elasticsearch cluster.
+func (c *ECEClient) GetElasticsearchClusterPlanActivity(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] GetElasticsearchClusterPlanActivity ID: %s\n", id)
 
 	// GET /api/v1/clusters/elasticsearch/{cluster_id}/plan/activity
-	resourceURL := c.BaseURL + eceResource + "/" + id + "/plan/activity"
-	log.Printf("[DEBUG] GetClusterPlanActivity Resource URL: %s\n", resourceURL)
+	resourceURL := c.BaseURL + elasticsearchResource + "/" + id + "/plan/activity"
+	log.Printf("[DEBUG] GetElasticsearchClusterPlanActivity Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("GET", resourceURL, nil)
 	if err != nil {
 		return nil, err
@@ -222,11 +323,70 @@ func (c *ECEClient) GetClusterPlanActivity(id string) (resp *http.Response, err 
 		return nil, err
 	}
 
-	log.Printf("[DEBUG] GetClusterPlanActivity response: %v\n", resp)
+	log.Printf("[DEBUG] GetElasticsearchClusterPlanActivity response: %v\n", resp)
 
 	if resp.StatusCode != 200 && resp.StatusCode != 404 {
 		respBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("%q: cluster plan activity could not be retrieved: %v", id, string(respBytes))
+		return nil, fmt.Errorf("%q: elasticsearch cluster plan activity could not be retrieved: %v", id, string(respBytes))
+	}
+
+	return resp, nil
+}
+
+// GetKibanaCluster returns information for an existing Kibana cluster.
+func (c *ECEClient) GetKibanaCluster(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] GetKibanaCluster ID: %s\n", id)
+
+	resourceURL := c.BaseURL + kibanaResource + "/" + id
+	log.Printf("[DEBUG] GetKibanaCluster Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("GET", resourceURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	req.SetBasicAuth(c.Username, c.Password)
+
+	resp, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] GetKibanaCluster response: %v\n", resp)
+
+	if resp.StatusCode != 200 && resp.StatusCode != 404 {
+		respBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%q: kibana cluster could not be retrieved: %v", id, string(respBytes))
+	}
+
+	return resp, nil
+}
+
+// GetKibanaClusterPlanActivity returns the active and historical plan information for a Kibana cluster.
+func (c *ECEClient) GetKibanaClusterPlanActivity(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] GetKibanaClusterPlanActivity ID: %s\n", id)
+
+	// GET /api/v1/clusters/kibana/{cluster_id}/plan/activity
+	resourceURL := c.BaseURL + kibanaResource + "/" + id + "/plan/activity"
+	log.Printf("[DEBUG] GetKibanaClusterPlanActivity Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("GET", resourceURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	req.SetBasicAuth(c.Username, c.Password)
+
+	resp, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] GetKibanaClusterPlanActivity response: %v\n", resp)
+
+	if resp.StatusCode != 200 && resp.StatusCode != 404 {
+		respBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%q: kibana cluster plan activity could not be retrieved: %v", id, string(respBytes))
 	}
 
 	return resp, nil
@@ -260,9 +420,9 @@ func (c *ECEClient) GetResponseBodyAsString(resp *http.Response) (body string, e
 	return body, nil
 }
 
-// UpdateCluster updates an existing ECE cluster using the specified cluster plan.
-func (c *ECEClient) UpdateCluster(id string, clusterPlan ElasticsearchClusterPlan) (resp *http.Response, err error) {
-	log.Printf("[DEBUG] UpdateCluster: %s: %v\n", id, clusterPlan)
+// UpdateElasticsearchCluster updates an existing elasticsearch cluster using the specified cluster plan.
+func (c *ECEClient) UpdateElasticsearchCluster(id string, clusterPlan ElasticsearchClusterPlan) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] UpdateElasticsearchCluster: %s: %v\n", id, clusterPlan)
 
 	jsonData, err := json.Marshal(clusterPlan)
 	if err != nil {
@@ -272,8 +432,8 @@ func (c *ECEClient) UpdateCluster(id string, clusterPlan ElasticsearchClusterPla
 	jsonString := string(jsonData)
 	body := strings.NewReader(jsonString)
 
-	resourceURL := c.BaseURL + eceResource + "/" + id + "/plan"
-	log.Printf("[DEBUG] UpdateCluster Resource URL: %s\n", resourceURL)
+	resourceURL := c.BaseURL + elasticsearchResource + "/" + id + "/plan"
+	log.Printf("[DEBUG] UpdateElasticsearchCluster Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("POST", resourceURL, body)
 	if err != nil {
 		return nil, err
@@ -287,19 +447,19 @@ func (c *ECEClient) UpdateCluster(id string, clusterPlan ElasticsearchClusterPla
 		return nil, err
 	}
 
-	log.Printf("[DEBUG] UpdateCluster response: %v\n", resp)
+	log.Printf("[DEBUG] UpdateElasticsearchCluster response: %v\n", resp)
 
 	if resp.StatusCode != 202 {
 		respBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("%q: cluster could not be updated: %v", id, string(respBytes))
+		return nil, fmt.Errorf("%q: elasticsearch cluster could not be updated: %v", id, string(respBytes))
 	}
 
 	return resp, nil
 }
 
-// UpdateClusterMetadata updates the metadata for an existing ECE cluster.
-func (c *ECEClient) UpdateClusterMetadata(id string, metadata ClusterMetadataSettings) (resp *http.Response, err error) {
-	log.Printf("[DEBUG] UpdateClusterMetadata: %s: %v\n", id, metadata)
+// UpdateElasticsearchClusterMetadata updates the metadata for an existing elasticsearch cluster.
+func (c *ECEClient) UpdateElasticsearchClusterMetadata(id string, metadata ClusterMetadataSettings) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] UpdateElasticsearchClusterMetadata: %s: %v\n", id, metadata)
 
 	jsonData, err := json.Marshal(metadata)
 	if err != nil {
@@ -310,8 +470,8 @@ func (c *ECEClient) UpdateClusterMetadata(id string, metadata ClusterMetadataSet
 	body := strings.NewReader(jsonString)
 
 	// PATCH /api/v1/clusters/elasticsearch/{cluster_id}/metadata/settings
-	resourceURL := c.BaseURL + eceResource + "/" + id + "/metadata/settings"
-	log.Printf("[DEBUG] UpdateClusterMetadata Resource URL: %s\n", resourceURL)
+	resourceURL := c.BaseURL + elasticsearchResource + "/" + id + "/metadata/settings"
+	log.Printf("[DEBUG] UpdateElasticsearchClusterMetadata Resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("PATCH", resourceURL, body)
 	if err != nil {
 		return nil, err
@@ -325,22 +485,97 @@ func (c *ECEClient) UpdateClusterMetadata(id string, metadata ClusterMetadataSet
 		return nil, err
 	}
 
-	log.Printf("[DEBUG] UpdateClusterMetadata response: %v\n", resp)
+	log.Printf("[DEBUG] UpdateElasticsearchClusterMetadata response: %v\n", resp)
 
 	if resp.StatusCode != 200 {
 		respBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("%q: cluster metadata settings could not be updated: %v", id, string(respBytes))
+		return nil, fmt.Errorf("%q: elasticsearch cluster metadata settings could not be updated: %v", id, string(respBytes))
 	}
 
 	return resp, nil
 }
 
-// ShutdownCluster shuts down an existing ECE cluster.
-func (c *ECEClient) ShutdownCluster(id string) (resp *http.Response, err error) {
-	log.Printf("[DEBUG] ShutdownCluster ID: %s\n", id)
+// UpdateKibanaCluster updates an existing Kibana cluster using the specified Kibana cluster plan.
+func (c *ECEClient) UpdateKibanaCluster(id string, kibanaPlan *KibanaClusterPlan) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] UpdateKibanaCluster: %s: %v\n", id, *kibanaPlan)
 
-	resourceURL := c.BaseURL + eceResource + "/" + id + "/_shutdown"
-	log.Printf("[DEBUG] Shutdown resource URL: %s\n", resourceURL)
+	jsonData, err := json.Marshal(kibanaPlan)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := string(jsonData)
+	body := strings.NewReader(jsonString)
+
+	resourceURL := c.BaseURL + kibanaResource + "/" + id + "/plan"
+	log.Printf("[DEBUG] UpdateKibanaCluster Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("POST", resourceURL, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	req.SetBasicAuth(c.Username, c.Password)
+
+	resp, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] UpdateKibanaCluster response: %v\n", resp)
+
+	if resp.StatusCode != 202 {
+		respBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%q: kibana cluster could not be updated: %v", id, string(respBytes))
+	}
+
+	return resp, nil
+}
+
+// UpdateKibanaClusterMetadata updates the metadata for an existing Kibana cluster.
+func (c *ECEClient) UpdateKibanaClusterMetadata(id string, metadata ClusterMetadataSettings) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] UpdateKibanaClusterMetadata: %s: %v\n", id, metadata)
+
+	jsonData, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := string(jsonData)
+	body := strings.NewReader(jsonString)
+
+	// PATCH /api/v1/clusters/kibana/{cluster_id}/metadata/settings
+	resourceURL := c.BaseURL + kibanaResource + "/" + id + "/metadata/settings"
+	log.Printf("[DEBUG] UpdateKibanaClusterMetadata Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("PATCH", resourceURL, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	req.SetBasicAuth(c.Username, c.Password)
+
+	resp, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] UpdateKibanaClusterMetadata response: %v\n", resp)
+
+	if resp.StatusCode != 200 {
+		respBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%q: kibana cluster metadata settings could not be updated: %v", id, string(respBytes))
+	}
+
+	return resp, nil
+}
+
+// ShutdownElasticsearchCluster shuts down an existing ECE cluster.
+func (c *ECEClient) ShutdownElasticsearchCluster(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] ShutdownElasticsearchCluster ID: %s\n", id)
+
+	resourceURL := c.BaseURL + elasticsearchResource + "/" + id + "/_shutdown"
+	log.Printf("[DEBUG] ShutdownElasticsearchCluster resource URL: %s\n", resourceURL)
 	req, err := http.NewRequest("POST", resourceURL, nil)
 	if err != nil {
 		return nil, err
@@ -354,59 +589,57 @@ func (c *ECEClient) ShutdownCluster(id string) (resp *http.Response, err error) 
 		return nil, err
 	}
 
-	log.Printf("[DEBUG] ShutdownCluster response: %v\n", resp)
+	log.Printf("[DEBUG] ShutdownElasticsearchCluster response: %v\n", resp)
 
 	if resp.StatusCode != 202 {
 		respBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("%q: cluster could not be shutdown: %v", id, string(respBytes))
+		return nil, fmt.Errorf("%q: elasticsearch cluster could not be shutdown: %v", id, string(respBytes))
 	}
 
 	return resp, nil
 }
 
-// WaitForStatus waits for a cluster to enter the specified status.
-func (c *ECEClient) WaitForStatus(id string, status string) error {
-	timeoutSeconds := time.Second * time.Duration(c.Timeout)
-	log.Printf("[DEBUG] WaitForStatus will wait for %v seconds for '%s' status for cluster ID: %s\n", timeoutSeconds, status, id)
+// ShutdownKibanaCluster shuts down an existing Kibana cluster.
+func (c *ECEClient) ShutdownKibanaCluster(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] ShutdownKibanaCluster ID: %s\n", id)
 
-	return resource.Retry(timeoutSeconds, func() *resource.RetryError {
-		resp, err := c.GetCluster(id)
-		if err != nil {
-			return resource.NonRetryableError(err)
-		}
+	resourceURL := c.BaseURL + kibanaResource + "/" + id + "/_shutdown"
+	log.Printf("[DEBUG] ShutdownKibanaCluster resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("POST", resourceURL, nil)
+	if err != nil {
+		return nil, err
+	}
 
-		if resp.StatusCode == 200 {
-			var clusterInfo ElasticsearchClusterInfo
-			err = json.NewDecoder(resp.Body).Decode(&clusterInfo)
-			if err != nil {
-				return resource.NonRetryableError(err)
-			}
+	req.Header.Set("Content-Type", jsonContentType)
+	req.SetBasicAuth(c.Username, c.Password)
 
-			if clusterInfo.Status == status {
-				log.Printf("[DEBUG] WaitForStatus desired cluster status reached: %s\n", clusterInfo.Status)
-				return nil
-			}
+	resp, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
 
-			log.Printf("[DEBUG] WaitForStatus current cluster status: %s. Desired status: %s\n", clusterInfo.Status, status)
-		}
+	log.Printf("[DEBUG] ShutdownKibanaCluster response: %v\n", resp)
 
-		return resource.RetryableError(
-			fmt.Errorf("%q: timeout while waiting for the cluster to be created", id))
-	})
+	if resp.StatusCode != 202 {
+		respBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%q: kibana cluster could not be shutdown: %v", id, string(respBytes))
+	}
+
+	return resp, nil
 }
 
-// WaitForShutdown waits for a cluster to shutdown.
-func (c *ECEClient) WaitForShutdown(id string) error {
+// WaitForElasticsearchClusterStatus waits for an elasticsearch cluster to enter the specified status.
+func (c *ECEClient) WaitForElasticsearchClusterStatus(id string, status string, allowMissing bool) error {
 	timeoutSeconds := time.Second * time.Duration(c.Timeout)
-	log.Printf("[DEBUG] WaitForShutdown will wait for %v seconds for shutdown of cluster ID: %s\n", timeoutSeconds, id)
+	log.Printf("[DEBUG] WaitForElasticsearchClusterStatus will wait for %v seconds for '%s' status for cluster ID: %s\n", timeoutSeconds, status, id)
 
 	return resource.Retry(timeoutSeconds, func() *resource.RetryError {
-		resp, err := c.GetCluster(id)
+		resp, err := c.GetElasticsearchCluster(id)
 		if err != nil {
 			return resource.NonRetryableError(err)
 		}
 
-		if resp.StatusCode == 404 {
+		if resp.StatusCode == 404 && allowMissing {
 			return nil
 		} else if resp.StatusCode == 200 {
 			var clusterInfo ElasticsearchClusterInfo
@@ -415,14 +648,48 @@ func (c *ECEClient) WaitForShutdown(id string) error {
 				return resource.NonRetryableError(err)
 			}
 
-			log.Printf("[DEBUG] WaitForShutdown cluster status: %s\n", clusterInfo.Status)
-
-			if clusterInfo.Status == "stopped" {
+			if clusterInfo.Status == status {
+				log.Printf("[DEBUG] WaitForElasticsearchClusterStatus desired cluster status reached: %s\n", clusterInfo.Status)
 				return nil
 			}
+
+			log.Printf("[DEBUG] WaitForElasticsearchClusterStatus current cluster status: %s. Desired status: %s\n", clusterInfo.Status, status)
 		}
 
 		return resource.RetryableError(
-			fmt.Errorf("%q: timeout while waiting for the cluster to shutdown", id))
+			fmt.Errorf("%q: timeout while waiting for the elasticsearch cluster to reach %s status", id, status))
+	})
+}
+
+// WaitForKibanaClusterStatus waits for a Kibana cluster to enter the specified status.
+func (c *ECEClient) WaitForKibanaClusterStatus(id string, status string, allowMissing bool) error {
+	timeoutSeconds := time.Second * time.Duration(c.Timeout)
+	log.Printf("[DEBUG] WaitForKibanaClusterStatus will wait for %v seconds for '%s' status for Kibana cluster ID: %s\n", timeoutSeconds, status, id)
+
+	return resource.Retry(timeoutSeconds, func() *resource.RetryError {
+		resp, err := c.GetKibanaCluster(id)
+		if err != nil {
+			return resource.NonRetryableError(err)
+		}
+
+		if resp.StatusCode == 404 && allowMissing {
+			return nil
+		} else if resp.StatusCode == 200 {
+			var clusterInfo KibanaClusterInfo
+			err = json.NewDecoder(resp.Body).Decode(&clusterInfo)
+			if err != nil {
+				return resource.NonRetryableError(err)
+			}
+
+			if clusterInfo.Status == status {
+				log.Printf("[DEBUG] WaitForKibanaClusterStatus desired Kibana cluster status reached: %s\n", clusterInfo.Status)
+				return nil
+			}
+
+			log.Printf("[DEBUG] WaitForKibanaClusterStatus current Kibana cluster status: %s. Desired status: %s\n", clusterInfo.Status, status)
+		}
+
+		return resource.RetryableError(
+			fmt.Errorf("%q: timeout while waiting for the Kibana cluster to reach %s status", id, status))
 	})
 }
