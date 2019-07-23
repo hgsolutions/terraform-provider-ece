@@ -322,7 +322,7 @@ func resourceElasticsearchClusterRead(d *schema.ResourceData, meta interface{}) 
 
 	if clusterInfo.AssociatedKibanaClusters != nil && len(clusterInfo.AssociatedKibanaClusters) > 0 {
 		kibanaClusterID := clusterInfo.AssociatedKibanaClusters[0].KibanaID
-		log.Printf("[DEBUG] Setting Kibana cluster ID: %v\n", plan)
+		log.Printf("[DEBUG] Setting Kibana cluster ID: %v\n", kibanaClusterID)
 		d.Set("kibana_cluster_id", kibanaClusterID)
 		if err != nil {
 			return err
@@ -559,38 +559,49 @@ func expandKibanaClusterTopology(kibanaPlan *KibanaClusterPlan, kibanaPlanMap ma
 }
 
 func expandKibanaCreateRequest(d *schema.ResourceData, meta interface{}) (kibanaRequest *CreateKibanaRequest, err error) {
+	log.Printf("[DEBUG] *********************** kibana: %v\n", d.Get("kibana"))
+
 	kibanaList := d.Get("kibana").([]interface{})
+
+	log.Printf("[DEBUG] *********************** kibanaList: %v\n", kibanaList)
 
 	if kibanaList == nil || len(kibanaList) == 0 {
 		log.Printf("[DEBUG] Kibana configuration not specified. No Kibana instance will be created.\n")
 		return nil, nil
 	}
 
-	var kibanaName string
-	if kibanaList[0] != nil {
-		kibanaMap := kibanaList[0].(map[string]interface{})
+	kibanaPlan := DefaultKibanaClusterPlan()
 
-		if v, ok := kibanaMap["cluster_name"]; ok {
-			kibanaName = v.(string)
-		}
-
-		kibanaPlan := DefaultKibanaClusterPlan()
-		if v, ok := kibanaMap["plan"]; ok {
-			err := expandKibanaClusterPlan(kibanaPlan, v.(interface{}))
-			if err != nil {
-				return nil, err
-			}
-		}
+	if kibanaList[0] == nil {
+		log.Printf("[DEBUG] Empty Kibana configuration specified. A default Kibana instance will be created.\n")
 
 		kibanaRequest = &CreateKibanaRequest{
-			ClusterName: kibanaName,
-			Plan:        kibanaPlan,
+			Plan: kibanaPlan,
 		}
 
 		return kibanaRequest, nil
 	}
 
-	return nil, nil
+	var kibanaName string
+	kibanaMap := kibanaList[0].(map[string]interface{})
+
+	if v, ok := kibanaMap["cluster_name"]; ok {
+		kibanaName = v.(string)
+	}
+
+	if v, ok := kibanaMap["plan"]; ok {
+		err := expandKibanaClusterPlan(kibanaPlan, v.(interface{}))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	kibanaRequest = &CreateKibanaRequest{
+		ClusterName: kibanaName,
+		Plan:        kibanaPlan,
+	}
+
+	return kibanaRequest, nil
 }
 
 func expandElasticsearchNodeTypeFromMap(nodeType *ElasticsearchNodeType, nodeTypeMap map[string]interface{}) {
