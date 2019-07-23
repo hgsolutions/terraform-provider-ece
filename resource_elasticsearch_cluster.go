@@ -392,7 +392,7 @@ func resourceElasticsearchClusterUpdate(d *schema.ResourceData, meta interface{}
 	d.SetPartial("plan")
 
 	if d.HasChange("kibana") {
-		updateKibanaCluster(client, clusterID, d, meta)
+		err = updateKibanaCluster(client, clusterID, d, meta)
 		if err != nil {
 			return err
 		}
@@ -559,11 +559,7 @@ func expandKibanaClusterTopology(kibanaPlan *KibanaClusterPlan, kibanaPlanMap ma
 }
 
 func expandKibanaCreateRequest(d *schema.ResourceData, meta interface{}) (kibanaRequest *CreateKibanaRequest, err error) {
-	log.Printf("[DEBUG] *********************** kibana: %v\n", d.Get("kibana"))
-
 	kibanaList := d.Get("kibana").([]interface{})
-
-	log.Printf("[DEBUG] *********************** kibanaList: %v\n", kibanaList)
 
 	if kibanaList == nil || len(kibanaList) == 0 {
 		log.Printf("[DEBUG] Kibana configuration not specified. No Kibana instance will be created.\n")
