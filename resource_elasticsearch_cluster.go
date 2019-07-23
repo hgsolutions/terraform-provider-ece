@@ -57,7 +57,7 @@ func resourceElasticsearchCluster() *schema.Resource {
 										Description: "The topology of the Kibana nodes, including the number, capacity, and type of nodes, and where they can be allocated.",
 										Optional:    true,
 										Computed:    false,
-										MinItems:    1,
+										MaxItems:    1,
 										Elem: &schema.Resource{
 											Schema: map[string]*schema.Schema{
 												"memory_per_node": &schema.Schema{
