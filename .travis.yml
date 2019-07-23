@@ -17,7 +17,7 @@ before_deploy:
   - export TARGET_ARCH="amd64"
   # Use terraform provider conventions
   #  https://www.terraform.io/docs/configuration/providers.html#third-party-plugins
-  - export FILE_NAME="terraform-provider-elasticsearch_${TRAVIS_TAG}_{{.OS}}_{{.Arch}}"
+  - export FILE_NAME="terraform-provider-ece_${TRAVIS_TAG}_{{.OS}}_{{.Arch}}"
   - gox -os "$TARGET_OS" -arch "$TARGET_ARCH" -output="$FILE_NAME"
   - CGO_ENABLED=0 gox -os "$TARGET_OS" -arch "$TARGET_ARCH" -output="${FILE_NAME}_static"
 deploy:
