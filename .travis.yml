@@ -23,7 +23,7 @@ before_deploy:
 deploy:
   provider: releases
   api_key:
-    secure: $GITHUB_TOKEN
+    secure: "$GITHUB_TOKEN"
   file: terraform-provider-ece*
   skip_cleanup: true
   file_glob: true
