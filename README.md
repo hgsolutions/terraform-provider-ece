@@ -14,6 +14,14 @@ See [the docs for more information](https://www.terraform.io/docs/plugins/basics
 
 ### Usage Notes
 
+- The general structure of the `ece_elasticsearch_cluster` resource schema was designed to match the request structure for creation of new Elasticsearch clusters using the ECE REST API. This API is documented here: https://www.elastic.co/guide/en/cloud-enterprise/current/ece-api-reference.html
+
+- Several of the aggregate schema resources would be better mapped as TypeMap, but currently TypeMap cannot be used for non-string values due to this bug: https://github.com/hashicorp/terraform/issues/15327. As a result, I used TypeList with a MaxValue of 1, matching what is done with the AWS provider for Elasticsearch domains. A consequence is that outputs of nested values will require an index designation, even when only one subitem is allowed. For example, to retrieve the node_count_per_zone from the cluster plan's first topology element, you would need to use this approach:
+
+  ```
+  ece_elasticsearch_cluster.test_cluster.plan.0.cluster_topology.0.node_count_per_zone
+  ```
+
 - Only a subset of the ECE API configuration parameters are currently implemented. See the `CreateElasticsearchClusterRequest` structure in the `ece_api_structures.go` file for the currently supported parameters.
 
 - Configuration changes to existing clusters are applied using a cluster plan. This plan is evaluated by ECE to determine what changes are required to the existing cluster. Plans typically result in provisioning of new nodes and decommissioning of existing nodes.
@@ -31,7 +39,7 @@ provider "ece" {
   timeout  = 600      # timeout after 10 minutes
 }
 
-resource "ece_cluster" "test_cluster" {
+resource "ece_elasticsearch_cluster" "test_cluster" {
   cluster_name = "Test Cluster 42"
 
   plan {
@@ -40,27 +48,51 @@ resource "ece_cluster" "test_cluster" {
     }
 
     cluster_topology {
-      memory_per_node = 1024
+      memory_per_node = 2048
 
       node_type {
         master = true
-        data   = false
+        data   = true
         ingest = true
+      }
+    }
+  }
+
+  kibana {
+    cluster_name = "Test Cluster 42"
+
+    plan {
+      cluster_topology {
+        memory_per_node = 2048
       }
     }
   }
 }
 ```
 
+### Outputs
+
+#### `ece_elasticsearch_cluster` outputs
+
+The following outputs are available after `ece_elasticsearch_cluster` resource creation:
+
+- `id`: the ID for the created Elasticsearch cluster.
+
+- `elasticsearch_username`: the username for the created Elasticsearch cluster
+
+- `elasticsearch_password`: the password for the created Elasticsearch cluster
+
+- `kibana_cluster_id`: the ID for the created Kibana cluster, if any
+
 ### Examples
 
-#### Create a default cluster
-To create a cluster with only the required inputs, use a configuration like the following. The created cluster will have a default topology of a single 1GB node instance with master, data, and ingest roles.
+#### Create a default Elasticsearch cluster
+To create an Elasticsearch cluster with only the required inputs, use a configuration like the following. The created cluster will have a default topology of a single 1GB node instance with master, data, and ingest roles.
 
-**NOTE:** The elasticsearch version is required and must be one of the Elastic Stack versions available in your ECE environment.
+**NOTE:** The Elasticsearch version is required and must be one of the Elastic Stack versions available in your ECE environment.
 
 ```
-resource "ece_cluster" "test_cluster" {
+resource "ece_elasticsearch_cluster" "test_cluster" {
   cluster_name = "Test Cluster 1"
 
   plan {
@@ -69,13 +101,29 @@ resource "ece_cluster" "test_cluster" {
     }
   }
 }
+
+output "test_cluster_id" {
+  value       = "${ece_elasticsearch_cluster.test_cluster.id}"
+  description = "The ID of the cluster"
+}
+
+output "test_cluster_username" {
+  value       = "${ece_elasticsearch_cluster.test_cluster.elasticsearch_username}"
+  description = "The username for logging in to the cluster."
+}
+
+output "test_cluster_password" {
+  value       = "${ece_elasticsearch_cluster.test_cluster.elasticsearch_password}"
+  description = "The password for logging in to the cluster."
+  sensitive   = true
+}
 ```
 
-#### Create a cluster with separate master and data nodes
-To create a cluster with separate master and data nodes, use a configuration like the following. The example also shows how to obtain outputs from each of the two topology elements.
+#### Create an Elasticsearch cluster with separate master and data nodes
+To create an Elasticsearch cluster with separate master and data nodes, use a configuration like the following. The example also shows how to obtain outputs from each of the two topology elements.
 
 ```
-resource "ece_cluster" "test_cluster" {
+resource "ece_elasticsearch_cluster" "test_cluster" {
   cluster_name = "Test Cluster 2"
 
   plan {
@@ -101,50 +149,84 @@ resource "ece_cluster" "test_cluster" {
   }
 }
 
-output "test_cluster_id" {
-  value       = "${ece_cluster.test_cluster.id}"
-  description = "The ID of the cluster"
-}
-
-output "test_cluster_name" {
-  value       = "${ece_cluster.test_cluster.cluster_name}"
-  description = "The name of the cluster"
-}
-
-output "test_cluster_elasticsearch_version" {
-  value       = "${ece_cluster.test_cluster.plan.0.elasticsearch.0.version}"
-  description = "The elasticsearch version of the cluster"
-}
-
 output "test_cluster_plan" {
-  value       = "${ece_cluster.test_cluster.plan}"
+  value       = "${ece_elasticsearch_cluster.test_cluster.plan}"
   description = "The provided input plan for the cluster"
 }
 
 output "test_cluster_topology_0_node_count_per_zone" {
-  value       = "${ece_cluster.test_cluster.plan.0.cluster_topology.0.node_count_per_zone}"
+  value       = "${ece_elasticsearch_cluster.test_cluster.plan.0.cluster_topology.0.node_count_per_zone}"
   description = "The node count per zone of the first topology element in the cluster"
 }
 
 output "test_cluster_topology_0_node_type_master" {
-  value       = "${ece_cluster.test_cluster.plan.0.cluster_topology.0.node_type.0.master}"
+  value       = "${ece_elasticsearch_cluster.test_cluster.plan.0.cluster_topology.0.node_type.0.master}"
   description = "Whether the role for the the first topology element in the cluster includes master"
 }
 
 output "test_cluster_topology_1_memory_per_node" {
-  value       = "${ece_cluster.test_cluster.plan.0.cluster_topology.1.memory_per_node}"
+  value       = "${ece_elasticsearch_cluster.test_cluster.plan.0.cluster_topology.1.memory_per_node}"
   description = "The memory per node for the second topology element in the cluster"
 }
+```
 
-output "test_cluster_username" {
-  value       = "${ece_cluster.test_cluster.elasticsearch_username}"
-  description = "The username for logging in to the cluster."
+#### Create an Elasticsearch cluster with an associated default Kibana cluster.
+To create an Elasticsearch cluster with an associatd default Kibana cluster, use a configuration like the following.
+
+```
+resource "ece_elasticsearch_cluster" "test_cluster" {
+  cluster_name = "Test Cluster 3"
+
+  plan {
+    elasticsearch {
+      version = "7.2.0"
+    }
+  }
+
+  kibana {
+  }
 }
 
-output "test_cluster_password" {
-  value       = "${ece_cluster.test_cluster.elasticsearch_password}"
-  description = "The password for logging in to the cluster."
-  sensitive   = true
+output "test_kibana_cluster_id" {
+  value       = "${ece_elasticsearch_cluster.test_cluster.kibana_cluster_id}"
+  description = "The ID of the Kibana cluster"
+}
+```
+
+#### Create an Elasticsearch cluster with an associated configured Kibana cluster.
+To create an Elasticsearch cluster with an associatd configured Kibana cluster, use a configuration like the following.
+
+```
+resource "ece_elasticsearch_cluster" "test_cluster" {
+  cluster_name = "Test Cluster 4"
+
+  plan {
+    elasticsearch {
+      version = "7.2.0"
+    }
+  }
+
+  kibana {
+    cluster_name = "Test Cluster 4"
+
+    plan {
+      cluster_topology {
+        memory_per_node = 2048
+        node_count_per_zone = 2
+        zone_count = 1
+      }
+    }
+  }
+}
+
+output "test_kibana_cluster_id" {
+  value       = "${ece_elasticsearch_cluster.test_cluster.kibana_cluster_id}"
+  description = "The ID of the Kibana cluster"
+}
+
+output "test_kibana_cluster_topology_0_memory_per_node" {
+  value       = "${ece_elasticsearch_cluster.test_cluster.kibana.0.plan.0.cluster_topology.0.memory_per_node}"
+  description = "The memory per node for the first topology element in the Kibana cluster"
 }
 ```
 
