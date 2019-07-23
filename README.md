@@ -69,14 +69,16 @@ resource "ece_elasticsearch_cluster" "test_cluster" {
   }
 }
 ```
+### Resources
+The provider currently supports a single resource: 
 
-### Outputs
+### `ece_elasticsearch_cluster`
+This resource creates an ECE Elasticsearch cluster and, optionally, an associated Kibana cluster.
 
-#### `ece_elasticsearch_cluster` outputs
-
+#### Resource Outputs
 The following outputs are available after `ece_elasticsearch_cluster` resource creation:
 
-- `id`: the ID for the created Elasticsearch cluster.
+- `id`: the ID for the created Elasticsearch cluster
 
 - `elasticsearch_username`: the username for the created Elasticsearch cluster
 
@@ -84,7 +86,7 @@ The following outputs are available after `ece_elasticsearch_cluster` resource c
 
 - `kibana_cluster_id`: the ID for the created Kibana cluster, if any
 
-### Examples
+#### Examples
 
 #### Create a default Elasticsearch cluster
 To create an Elasticsearch cluster with only the required inputs, use a configuration like the following. The created cluster will have a default topology of a single 1GB node instance with master, data, and ingest roles.
