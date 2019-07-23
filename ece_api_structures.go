@@ -195,6 +195,15 @@ type KibanaClusterPlan struct {
 	ZoneCount       int                            `json:"zone_count"`
 }
 
+// DefaultKibanaClusterPlan returns a new KibanaClusterPlan with default values.
+func DefaultKibanaClusterPlan() *KibanaClusterPlan {
+	return &KibanaClusterPlan{
+		ClusterTopology: []KibanaClusterTopologyElement{*DefaultKibanaClusterTopologyElement()},
+		Kibana:          *DefaultKibanaConfiguration(),
+		ZoneCount:       1,
+	}
+}
+
 // KibanaClusterPlanInfo defines information about the current, pending, or past Kibana instance plan.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaClusterPlanInfo
 type KibanaClusterPlanInfo struct {
@@ -215,28 +224,21 @@ type KibanaClusterPlansInfo struct {
 	Healthy bool                  `json:"healthy"`
 }
 
-// DefaultKibanaClusterPlan returns a new KibanaClusterPlan with default values.
-func DefaultKibanaClusterPlan() *KibanaClusterPlan {
-	return &KibanaClusterPlan{
-		ClusterTopology: []KibanaClusterTopologyElement{*DefaultKibanaClusterTopologyElement()},
-		Kibana:          *DefaultKibanaConfiguration(),
-		ZoneCount:       1,
-	}
-}
-
 // KibanaClusterTopologyElement defines the topology of the Kibana nodes, including the number, capacity, and
 // type of nodes, and where they can be allocated.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaClusterTopologyElement
 type KibanaClusterTopologyElement struct {
-	MemoryPerNode int   `json:"memory_per_node"`
-	ZoneCount     int32 `json:"zone_count"`
+	MemoryPerNode    int `json:"memory_per_node"`
+	NodeCountPerZone int `json:"node_count_per_zone"`
+	ZoneCount        int `json:"zone_count"`
 }
 
 // DefaultKibanaClusterTopologyElement returns a new KibanaClusterTopologyElement with default values.
 func DefaultKibanaClusterTopologyElement() *KibanaClusterTopologyElement {
 	return &KibanaClusterTopologyElement{
-		MemoryPerNode: 1024,
-		ZoneCount:     1,
+		MemoryPerNode:    1024,
+		NodeCountPerZone: 1,
+		ZoneCount:        1,
 	}
 }
 

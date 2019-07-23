@@ -65,7 +65,7 @@ func Provider() terraform.ResourceProvider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"ece_cluster": resourceECECluster(),
+			"ece_elasticsearch_cluster": resourceElasticsearchCluster(),
 		},
 
 		ConfigureFunc: providerConfigure,

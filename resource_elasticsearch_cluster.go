@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
-func resourceECECluster() *schema.Resource {
+func resourceElasticsearchCluster() *schema.Resource {
 	// NOTE: Several of the aggregate schema resources below would better be mapped as TypeMap,
 	// but currently TypeMap cannot be used for non-string values due to this bug:
 	// https://github.com/hashicorp/terraform/issues/15327
@@ -19,10 +19,10 @@ func resourceECECluster() *schema.Resource {
 	// github.com/terraform-providers/terraform-provider-aws/aws/resource_aws_elasticsearch_domain.go
 
 	return &schema.Resource{
-		Create: resourceECEClusterCreate,
-		Read:   resourceECEClusterRead,
-		Update: resourceECEClusterUpdate,
-		Delete: resourceECEClusterDelete,
+		Create: resourceElasticsearchClusterCreate,
+		Read:   resourceElasticsearchClusterRead,
+		Update: resourceElasticsearchClusterUpdate,
+		Delete: resourceElasticsearchClusterDelete,
 		Schema: map[string]*schema.Schema{
 			"cluster_name": &schema.Schema{
 				Type:        schema.TypeString,
@@ -40,9 +40,52 @@ func resourceECECluster() *schema.Resource {
 					Schema: map[string]*schema.Schema{
 						"cluster_name": &schema.Schema{
 							Type:        schema.TypeString,
-							Description: "The name of the cluster.",
+							Description: "The name of the Kibana cluster.",
 							ForceNew:    false,
 							Optional:    true,
+						},
+						"plan": {
+							Type:        schema.TypeList,
+							Description: "The plan for the Kibana cluster.",
+							ForceNew:    false,
+							Optional:    true,
+							MaxItems:    1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"cluster_topology": {
+										Type:        schema.TypeList,
+										Description: "The topology of the Kibana nodes, including the number, capacity, and type of nodes, and where they can be allocated.",
+										Optional:    true,
+										Computed:    false,
+										MinItems:    1,
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"memory_per_node": &schema.Schema{
+													Type:        schema.TypeInt,
+													Description: "The memory capacity in MB for each node of this type built in each zone. The default is 1024.",
+													ForceNew:    false,
+													Optional:    true,
+													Default:     1024,
+												},
+												"node_count_per_zone": &schema.Schema{
+													Type:        schema.TypeInt,
+													Description: "The number of nodes of this type that are allocated within each zone. The default is 1.",
+													ForceNew:    false,
+													Optional:    true,
+													Default:     1,
+												},
+												"zone_count": &schema.Schema{
+													Type:        schema.TypeInt,
+													ForceNew:    false,
+													Optional:    true,
+													Default:     1,
+													Description: "The default number of zones in which nodes will be placed. The default is 1.",
+												},
+											},
+										},
+									},
+								},
+							},
 						},
 					},
 				},
@@ -65,7 +108,7 @@ func resourceECECluster() *schema.Resource {
 								Schema: map[string]*schema.Schema{
 									"memory_per_node": &schema.Schema{
 										Type:        schema.TypeInt,
-										Description: "The memory capacity in MB for each node of this type built in each zone. The default is 2048.",
+										Description: "The memory capacity in MB for each node of this type built in each zone. The default is 1024.",
 										ForceNew:    false,
 										Optional:    true,
 										Default:     1024,
@@ -164,13 +207,13 @@ func resourceECECluster() *schema.Resource {
 	}
 }
 
-func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
+func resourceElasticsearchClusterCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 
 	clusterName := d.Get("cluster_name").(string)
-	log.Printf("[DEBUG] Creating cluster with name: %s\n", clusterName)
+	log.Printf("[DEBUG] Creating elasticsearch cluster with name: %s\n", clusterName)
 
-	clusterPlan, err := expandClusterPlan(d, meta)
+	clusterPlan, err := expandElasticsearchClusterPlan(d, meta)
 	if err != nil {
 		return err
 	}
@@ -232,14 +275,14 @@ func resourceECEClusterCreate(d *schema.ResourceData, meta interface{}) error {
 		d.Set("kibana_cluster_id", kibanaClusterID)
 	}
 
-	return resourceECEClusterRead(d, meta)
+	return resourceElasticsearchClusterRead(d, meta)
 }
 
-func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
+func resourceElasticsearchClusterRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 
 	clusterID := d.Id()
-	log.Printf("[DEBUG] Reading cluster information for cluster ID: %s\n", clusterID)
+	log.Printf("[DEBUG] Reading elasticsearch cluster information for cluster ID: %s\n", clusterID)
 
 	resp, err := client.GetElasticsearchCluster(clusterID)
 	if err != nil {
@@ -249,7 +292,7 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 	// If the resource does not exist, inform Terraform. We want to immediately
 	// return here to prevent further processing.
 	if resp.StatusCode == 404 {
-		log.Printf("[DEBUG] cluster ID not found: %s\n", clusterID)
+		log.Printf("[DEBUG] Elasticsearch cluster ID not found: %s\n", clusterID)
 		d.SetId("")
 		return nil
 	}
@@ -259,7 +302,7 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	log.Printf("[DEBUG] Cluster response body: %v\n", string(respBytes))
+	log.Printf("[DEBUG] Elasticsearch cluster response body: %v\n", string(respBytes))
 
 	var clusterInfo ElasticsearchClusterInfo
 	err = json.Unmarshal(respBytes, &clusterInfo)
@@ -267,11 +310,11 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	log.Printf("[DEBUG] Setting cluster_name: %v\n", clusterInfo.ClusterName)
+	log.Printf("[DEBUG] Setting elasticsearch cluster_name: %v\n", clusterInfo.ClusterName)
 	d.Set("cluster_name", clusterInfo.ClusterName)
 
-	plan := flattenClusterPlan(clusterInfo)
-	log.Printf("[DEBUG] Setting cluster plan: %v\n", plan)
+	plan := flattenElasticsearchClusterPlan(clusterInfo)
+	log.Printf("[DEBUG] Setting elasticsearch cluster plan: %v\n", plan)
 	d.Set("plan", plan)
 	if err != nil {
 		return err
@@ -279,7 +322,7 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 
 	if clusterInfo.AssociatedKibanaClusters != nil && len(clusterInfo.AssociatedKibanaClusters) > 0 {
 		kibanaClusterID := clusterInfo.AssociatedKibanaClusters[0].KibanaID
-		log.Printf("[DEBUG] Setting kibana cluster ID: %v\n", plan)
+		log.Printf("[DEBUG] Setting Kibana cluster ID: %v\n", plan)
 		d.Set("kibana_cluster_id", kibanaClusterID)
 		if err != nil {
 			return err
@@ -289,13 +332,13 @@ func resourceECEClusterRead(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceElasticsearchClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 
 	d.Partial(true)
 
 	clusterID := d.Id()
-	log.Printf("[DEBUG] Updating cluster ID: %s\n", clusterID)
+	log.Printf("[DEBUG] Updating elasticsearch cluster ID: %s\n", clusterID)
 
 	resp, err := client.GetElasticsearchCluster(clusterID)
 	if err != nil {
@@ -320,7 +363,7 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 	d.SetPartial("cluster_name")
 
 	if d.HasChange("plan") {
-		clusterPlan, err := expandClusterPlan(d, meta)
+		clusterPlan, err := expandElasticsearchClusterPlan(d, meta)
 		if err != nil {
 			return err
 		}
@@ -349,7 +392,7 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 	d.SetPartial("plan")
 
 	if d.HasChange("kibana") {
-		updateKibana(client, clusterID, d, meta)
+		updateKibanaCluster(client, clusterID, d, meta)
 		if err != nil {
 			return err
 		}
@@ -357,10 +400,10 @@ func resourceECEClusterUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	d.Partial(false)
 
-	return resourceECEClusterRead(d, meta)
+	return resourceElasticsearchClusterRead(d, meta)
 }
 
-func resourceECEClusterDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceElasticsearchClusterDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 	clusterID := d.Id()
 
@@ -373,11 +416,11 @@ func resourceECEClusterDelete(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-func expandClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *ElasticsearchClusterPlan, err error) {
+func expandElasticsearchClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *ElasticsearchClusterPlan, err error) {
 	clusterPlanList := d.Get("plan").([]interface{})
 	clusterPlanMap := clusterPlanList[0].(map[string]interface{})
 
-	clusterTopology := expandClusterTopology(clusterPlanMap)
+	clusterTopology := expandElasticsearchClusterTopology(clusterPlanMap)
 	elasticsearchConfiguration, err := expandElasticsearchConfiguration(clusterPlanMap)
 	if err != nil {
 		return nil, err
@@ -391,7 +434,7 @@ func expandClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *E
 	return clusterPlan, nil
 }
 
-func expandClusterTopology(clusterPlanMap map[string]interface{}) []ElasticsearchClusterTopologyElement {
+func expandElasticsearchClusterTopology(clusterPlanMap map[string]interface{}) []ElasticsearchClusterTopologyElement {
 	inputClusterTopologyMap := clusterPlanMap["cluster_topology"].([]interface{})
 	clusterTopology := make([]ElasticsearchClusterTopologyElement, 0)
 
@@ -410,7 +453,7 @@ func expandClusterTopology(clusterPlanMap map[string]interface{}) []Elasticsearc
 			nodeType := DefaultElasticsearchNodeType()
 			nodeTypeMaps := v.([]interface{})
 			if len(nodeTypeMaps) > 0 {
-				expandNodeTypeFromMap(nodeType, nodeTypeMaps[0].(map[string]interface{}))
+				expandElasticsearchNodeTypeFromMap(nodeType, nodeTypeMaps[0].(map[string]interface{}))
 			}
 			clusterTopologyElement.NodeType = *nodeType
 		}
@@ -450,15 +493,69 @@ func expandElasticsearchConfiguration(clusterPlanMap map[string]interface{}) (el
 	return elasticsearchConfiguration, nil
 }
 
-func expandKibanaClusterPlan(d *schema.ResourceData, meta interface{}) (kibanaPlan *KibanaClusterPlan, err error) {
-	kibanaList := d.Get("kibana").([]interface{})
-
-	if kibanaList == nil || len(kibanaList) == 0 {
-		log.Printf("[DEBUG] Kibana configuration not specified. No Kibana plan will be created.\n")
-		return nil, nil
+func expandKibanaClusterPlan(kibanaPlan *KibanaClusterPlan, inputPlan interface{}) error {
+	if inputPlan == nil {
+		return nil
 	}
 
-	return DefaultKibanaClusterPlan(), nil
+	kibanaPlanList := inputPlan.([]interface{})
+	if len(kibanaPlanList) == 0 {
+		return nil
+	}
+
+	kibanaPlanMap, ok := kibanaPlanList[0].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	if v, ok := kibanaPlanMap["zone_count"]; ok {
+		kibanaPlan.ZoneCount = v.(int)
+	}
+
+	expandKibanaClusterTopology(kibanaPlan, kibanaPlanMap)
+
+	return nil
+}
+
+func expandKibanaClusterTopology(kibanaPlan *KibanaClusterPlan, kibanaPlanMap map[string]interface{}) {
+	var inputClusterTopologyMap []interface{}
+
+	if v, ok := kibanaPlanMap["cluster_topology"]; ok {
+		inputClusterTopologyMap = v.([]interface{})
+	}
+
+	if inputClusterTopologyMap == nil {
+		return
+	}
+
+	clusterTopology := make([]KibanaClusterTopologyElement, 0)
+
+	for _, t := range inputClusterTopologyMap {
+		elementMap := t.(map[string]interface{})
+		clusterTopologyElement := DefaultKibanaClusterTopologyElement()
+		if v, ok := elementMap["memory_per_node"]; ok {
+			clusterTopologyElement.MemoryPerNode = v.(int)
+		}
+
+		if v, ok := elementMap["node_count_per_zone"]; ok {
+			clusterTopologyElement.NodeCountPerZone = v.(int)
+		}
+
+		if v, ok := elementMap["zone_count"]; ok {
+			clusterTopologyElement.ZoneCount = v.(int)
+		}
+
+		clusterTopology = append(clusterTopology, *clusterTopologyElement)
+	}
+
+	// Create a default cluster topology element if none is provided in the input map.
+	if len(clusterTopology) == 0 {
+		clusterTopology = append(clusterTopology, *DefaultKibanaClusterTopologyElement())
+	}
+
+	kibanaPlan.ClusterTopology = clusterTopology
+
+	return
 }
 
 func expandKibanaCreateRequest(d *schema.ResourceData, meta interface{}) (kibanaRequest *CreateKibanaRequest, err error) {
@@ -476,22 +573,27 @@ func expandKibanaCreateRequest(d *schema.ResourceData, meta interface{}) (kibana
 		if v, ok := kibanaMap["cluster_name"]; ok {
 			kibanaName = v.(string)
 		}
+
+		kibanaPlan := DefaultKibanaClusterPlan()
+		if v, ok := kibanaMap["plan"]; ok {
+			err := expandKibanaClusterPlan(kibanaPlan, v.(interface{}))
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		kibanaRequest = &CreateKibanaRequest{
+			ClusterName: kibanaName,
+			Plan:        kibanaPlan,
+		}
+
+		return kibanaRequest, nil
 	}
 
-	kibanaPlan, err := expandKibanaClusterPlan(d, meta)
-	if err != nil {
-		return nil, err
-	}
-
-	kibanaRequest = &CreateKibanaRequest{
-		ClusterName: kibanaName,
-		Plan:        kibanaPlan,
-	}
-
-	return kibanaRequest, nil
+	return nil, nil
 }
 
-func expandNodeTypeFromMap(nodeType *ElasticsearchNodeType, nodeTypeMap map[string]interface{}) {
+func expandElasticsearchNodeTypeFromMap(nodeType *ElasticsearchNodeType, nodeTypeMap map[string]interface{}) {
 	if v, ok := nodeTypeMap["data"]; ok {
 		nodeType.Data = v.(bool)
 		log.Printf("[DEBUG] Expanded node_type.data as: %t\n", nodeType.Data)
@@ -513,13 +615,13 @@ func expandNodeTypeFromMap(nodeType *ElasticsearchNodeType, nodeTypeMap map[stri
 	}
 }
 
-func flattenClusterPlan(clusterInfo ElasticsearchClusterInfo) []map[string]interface{} {
+func flattenElasticsearchClusterPlan(clusterInfo ElasticsearchClusterInfo) []map[string]interface{} {
 	clusterPlanMaps := make([]map[string]interface{}, 1)
 
 	clusterPlan := clusterInfo.PlanInfo.Current.Plan
 
 	clusterPlanMap := make(map[string]interface{})
-	clusterPlanMap["cluster_topology"] = flattenClusterTopology(clusterInfo, clusterPlan)
+	clusterPlanMap["cluster_topology"] = flattenElasticsearchClusterTopology(clusterInfo, clusterPlan)
 	clusterPlanMap["elasticsearch"] = flattenElasticsearchConfiguration(clusterPlan.Elasticsearch)
 
 	clusterPlanMaps[0] = clusterPlanMap
@@ -527,7 +629,7 @@ func flattenClusterPlan(clusterInfo ElasticsearchClusterInfo) []map[string]inter
 	return clusterPlanMaps
 }
 
-func flattenClusterTopology(clusterInfo ElasticsearchClusterInfo, clusterPlan ElasticsearchClusterPlan) []map[string]interface{} {
+func flattenElasticsearchClusterTopology(clusterInfo ElasticsearchClusterInfo, clusterPlan ElasticsearchClusterPlan) []map[string]interface{} {
 	topologyMap := make([]map[string]interface{}, 0)
 
 	// NOTE: This property appears as deprecated in the ECE API documentation, recommending use of the zone count from the
@@ -543,7 +645,7 @@ func flattenClusterTopology(clusterInfo ElasticsearchClusterInfo, clusterPlan El
 		elementMap["memory_per_node"] = t.MemoryPerNode
 		elementMap["node_count_per_zone"] = t.NodeCountPerZone
 
-		elementMap["node_type"] = flattenNodeType(clusterInfo, i)
+		elementMap["node_type"] = flattenElasticsearchNodeType(clusterInfo, i)
 
 		// See note above about clusterPlan.ZoneCount.
 		if t.ZoneCount > 0 {
@@ -573,7 +675,7 @@ func flattenElasticsearchConfiguration(configuration ElasticsearchConfiguration)
 	return elasticsearchMaps
 }
 
-func flattenNodeType(clusterInfo ElasticsearchClusterInfo, instanceIndex int) map[string]interface{} {
+func flattenElasticsearchNodeType(clusterInfo ElasticsearchClusterInfo, instanceIndex int) map[string]interface{} {
 	nodeTypeMap := make(map[string]interface{})
 
 	if len(clusterInfo.Topology.Instances) > 0 {
@@ -587,7 +689,7 @@ func flattenNodeType(clusterInfo ElasticsearchClusterInfo, instanceIndex int) ma
 				nodeTypeValues[s] = true
 			}
 
-			expandNodeTypeFromMap(nodeType, nodeTypeValues)
+			expandElasticsearchNodeTypeFromMap(nodeType, nodeTypeValues)
 		}
 
 		nodeTypeMap["data"] = nodeType.Data
@@ -615,7 +717,7 @@ func logJSON(context string, m interface{}) {
 	log.Printf("[DEBUG] %s: %s", context, string(jsonBytes))
 }
 
-func updateKibana(client *ECEClient, clusterID string, d *schema.ResourceData, meta interface{}) error {
+func updateKibanaCluster(client *ECEClient, clusterID string, d *schema.ResourceData, meta interface{}) error {
 	// Use the Kibana Cluster ID to determine if an existing cluster is being updated/removed
 	// or a new cluster should be created.
 	var kibanaClusterID string
@@ -710,7 +812,7 @@ func validateElasticsearchClusterPlanActivity(client *ECEClient, clusterID strin
 	}
 
 	if resp.StatusCode == 404 {
-		return fmt.Errorf("%q: cluster ID was not found after update", clusterID)
+		return fmt.Errorf("%q: elasticsearch cluster ID was not found after update", clusterID)
 	}
 
 	var clusterPlansInfo ElasticsearchClusterPlansInfo
@@ -755,7 +857,7 @@ func validateKibanaClusterPlanActivity(client *ECEClient, clusterID string) erro
 	}
 
 	if resp.StatusCode == 404 {
-		return fmt.Errorf("%q: cluster ID was not found after update", clusterID)
+		return fmt.Errorf("%q: kibana cluster ID was not found after update", clusterID)
 	}
 
 	var clusterPlansInfo KibanaClusterPlansInfo
