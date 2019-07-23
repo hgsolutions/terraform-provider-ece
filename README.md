@@ -6,7 +6,7 @@ Based on work by Phillip Baker: [terraform-provider-elasticsearch](https://githu
 
 ## Installation
 
-Build or download a binary from the releases folder and put it in your Terraform user plugins directory.
+Build or download a binary and place it in your Terraform user plugins directory.
 
 See [the docs for more information](https://www.terraform.io/docs/plugins/basics.html).
 
