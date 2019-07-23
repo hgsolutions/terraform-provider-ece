@@ -23,7 +23,7 @@ before_deploy:
 deploy:
   provider: releases
   api_key:
-    secure: "$GITHUB_TOKEN"
+    secure: Acmd1ITx6uhnAYPTKT2SeNZcZcXHI5LwNrZB6crtFoFMqIsCa47dUXEUvoi/6NE8OJj17JiwdCThOf7Ok4Ai6D49ASieydXJWgRyNyOV0iQxjD76wFXKuczJuv4TKr3W/1Cb+eHZV/zHe/ZHIp79F53slpMZAAJ57KrPSUg19dLHvL9Jyd7lW2hwsJhDmqiByNkIlOkqkOxW86cppW/l8xYOpS+ETQoUwSH+D1Pb8XqU75kVzzErkgwsBZ+2fOWD93E8ltJ+FySA9K7WVuieFfLjnU08jxJAdt43KRJqJCGubjL4Ep2An4qkr4dz+Qm2Wfn7hJO6ac6wN7HJ9JV9nDz+DP+4NUvZZevn2ubIy1fj+zWqKCg4gzOa8qpzGyahI8N9MZk4xLL3LnsxNYyDq0nn/Rw0IHZH1PutcIn0HWgdPgE2TzONZUDdw/19fGPdcfZsfoweHQlh87GrpelOlZ0jrIcHgiITbq4d+JxheshAN2stNlISCYoTpKthpkQdIBDxTYKIktU8Fw9SBkcA7nvQcXsIvLSSKE9OKAvqCPcBYjIZ7wpxc5ToBQQk6r/EVFYSgHiHLZqOuw1kR4aXu04SShB5qVmlHkmTvmoihwJhBy1Pe6XJRYCo6seZUHxmxfN1dUeWtgqAIsBRq8xfTp+RbLbOu5gsCTeCkUB2OnM=
   file: terraform-provider-ece*
   skip_cleanup: true
   file_glob: true
