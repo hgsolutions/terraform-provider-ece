@@ -1,12 +1,14 @@
 # terraform-provider-ece
 
+[![Build Status](https://travis-ci.org/Ascendon/terraform-provider-ece.svg?branch=master)](https://travis-ci.org/Ascendon/terraform-provider-ece)
+
 Terraform provider for provisioning Elastic Cloud Enterprise (ECE) Elasticsearch clusters, compatible with v2.2 of ECE. 
 
 Based on work by Phillip Baker: [terraform-provider-elasticsearch](https://github.com/phillbaker/terraform-provider-elasticsearch).
 
 ## Installation
 
-Build or download a binary and place it in your Terraform user plugins directory.
+Build or download a release binary and place it in your Terraform user plugins directory.
 
 See [the docs for more information](https://www.terraform.io/docs/plugins/basics.html).
 
@@ -236,7 +238,7 @@ output "test_kibana_cluster_topology_0_memory_per_node" {
 
 ### Requirements
 
-* [Golang](https://golang.org/dl/) >= 1.7
+* [Golang](https://golang.org/dl/) >= 1.11
 * [Glide](https://github.com/Masterminds/glide)
 * [ECE](https://www.elastic.co/downloads/enterprise)
 
@@ -269,11 +271,7 @@ Ensure that this folder is at the following location: `${GOPATH}/src/github.com/
 ```
 cd ~/go/src/github.com/Ascendon/terraform-provider-ece
 
-glide install
-
-go build -o releases/terraform-provider-ece_v0.2.2
-
-cp releases/terraform-provider-ece_v0.2.2 ~/.terraform.d/plugins/darwin_amd64/.
+go build -o ~/.terraform.d/plugins/darwin_amd64/terraform-provider-ece
 ```
 
 ## Contributing
