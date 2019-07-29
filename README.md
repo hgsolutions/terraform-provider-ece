@@ -10,9 +10,9 @@ This provider is based in part on [terraform-provider-elasticsearch](https://git
 
 Build or download a release binary and place it in your Terraform user plugins directory. 
 
-**NOTE:** If you download the release binary, ensure you rename it to match the requirements for Terraform for your environment. For example, for Windows, remove the `_windows_amd64` portion of the filename when you copy the binary to your `plugins` directory.
+**NOTE:** If you download a release binary, ensure you rename it to match the requirements for Terraform for your environment. For example, for Windows, remove the `_windows_amd64` portion of the filename when you copy the binary to your `plugins` directory.
 
-For more information, see the [Terraform plugins basic](https://www.terraform.io/docs/plugins/basics.html) page.
+For more information, see the [Terraform Plugin Basics](https://www.terraform.io/docs/plugins/basics.html) page.
 
 ## Usage
 
