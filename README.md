@@ -74,11 +74,11 @@ resource "ece_elasticsearch_cluster" "test_cluster" {
 ### Provider Configuration
 The provider supports the following configuration parameters:
 
-- `url`: the fully-qualified URL for the ECE API, including port. Can be specified via an `ECE_URL` environment variable.
+- `url`: the fully-qualified URL for the ECE API, including port. Can also be specified via an `ECE_URL` environment variable.
 
-- `username`: the ECE username to use for basic authentication. Can be specified via an `ECE_USERNAME` environment variable.
+- `username`: the ECE username to use for basic authentication. Can also be specified via an `ECE_USERNAME` environment variable.
 
-- `password`: the ECE password to use for basic authentication. Can be specified via an `ECE_PASSWORD` environment variable.
+- `password`: the ECE password to use for basic authentication. Can also be specified via an `ECE_PASSWORD` environment variable.
 
 - `timeout`: the timeout in seconds for resource operations. The default is 1 hour (3600 seconds).
 
