@@ -147,7 +147,8 @@ func DefaultElasticsearchClusterTopologyElement() *ElasticsearchClusterTopologyE
 // ElasticsearchConfiguration defines the Elasticsearch cluster settings.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchConfiguration
 type ElasticsearchConfiguration struct {
-	Version string `json:"version"`
+	SystemSettings ElasticsearchSystemSettings `json:"system_settings"`
+	Version        string                      `json:"version"`
 }
 
 // ElasticsearchNodeType defines the combinations of Elasticsearch node types.
@@ -176,6 +177,19 @@ type ElasticsearchPlanControlConfiguration struct {
 	// Commenting because default is calculated based on cluster size and is
 	// typically higher than configured provider timeout.
 	// Timeout int64 `json:"timeout"`
+}
+
+// ElasticsearchSystemSettings defines a subset of elasticsearch settings.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchSystemSettings
+type ElasticsearchSystemSettings struct {
+	UseDiskThreshold bool `json:"use_disk_threshold"`
+}
+
+// DefaultElasticsearchSystemSettings returns a new ElasticsearchSystemSettings with default values.
+func DefaultElasticsearchSystemSettings() *ElasticsearchSystemSettings {
+	return &ElasticsearchSystemSettings{
+		UseDiskThreshold: true,
+	}
 }
 
 // KibanaClusterInfo defines the top-level object information for a Kibana instance.

@@ -173,6 +173,24 @@ func resourceElasticsearchCluster() *schema.Resource {
 							MaxItems:    1,
 							Elem: &schema.Resource{
 								Schema: map[string]*schema.Schema{
+									"system_settings": &schema.Schema{
+										Type:        schema.TypeList,
+										Description: "The Elasticsearch cluster system settings.",
+										ForceNew:    false,
+										Optional:    true,
+										MaxItems:    1,
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"use_disk_threshold": &schema.Schema{
+													Type:        schema.TypeBool,
+													Description: "Whether to factor in the available disk space on a node before deciding whether to allocate new shards to that node or actively relocate shards away from the node.",
+													ForceNew:    false,
+													Optional:    true,
+													Default:     true,
+												},
+											},
+										},
+									},
 									"version": &schema.Schema{
 										Type:        schema.TypeString,
 										Description: "The version of the Elasticsearch cluster (must be one of the ECE supported versions).",
@@ -490,7 +508,40 @@ func expandElasticsearchConfiguration(clusterPlanMap map[string]interface{}) (el
 		Version: elasticsearchMap["version"].(string),
 	}
 
+	systemSettings := DefaultElasticsearchSystemSettings()
+
+	if v, ok := elasticsearchMap["system_settings"]; ok {
+		err := expandElasticsearchSystemSettings(systemSettings, v.(interface{}))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	elasticsearchConfiguration.SystemSettings = *systemSettings
+
 	return elasticsearchConfiguration, nil
+}
+
+func expandElasticsearchSystemSettings(systemSettings *ElasticsearchSystemSettings, inputSystemSettings interface{}) error {
+	if inputSystemSettings == nil {
+		return nil
+	}
+
+	systemSettingsList := inputSystemSettings.([]interface{})
+	if len(systemSettingsList) == 0 {
+		return nil
+	}
+
+	systemSettingsMap, ok := systemSettingsList[0].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	if v, ok := systemSettingsMap["use_disk_threshold"]; ok {
+		systemSettings.UseDiskThreshold = v.(bool)
+	}
+
+	return nil
 }
 
 func expandKibanaClusterPlan(kibanaPlan *KibanaClusterPlan, inputPlan interface{}) error {
@@ -674,6 +725,7 @@ func flattenElasticsearchConfiguration(configuration ElasticsearchConfiguration)
 
 	elasticsearchMap := make(map[string]interface{})
 	elasticsearchMap["version"] = configuration.Version
+	elasticsearchMap["system_settings"] = flattenElasticsearchSystemSettings(configuration.SystemSettings)
 
 	elasticsearchMaps[0] = elasticsearchMap
 
@@ -713,6 +765,19 @@ func flattenElasticsearchNodeType(clusterInfo ElasticsearchClusterInfo, instance
 	}
 
 	return nodeTypeMap
+}
+
+func flattenElasticsearchSystemSettings(systemSettings ElasticsearchSystemSettings) []map[string]interface{} {
+	systemSettingsMaps := make([]map[string]interface{}, 1)
+
+	systemSettingsMap := make(map[string]interface{})
+	systemSettingsMap["use_disk_threshold"] = systemSettings.UseDiskThreshold
+
+	systemSettingsMaps[0] = systemSettingsMap
+
+	logJSON("Flattened elasticsearch system settings", systemSettingsMaps)
+
+	return systemSettingsMaps
 }
 
 func logJSON(context string, m interface{}) {
