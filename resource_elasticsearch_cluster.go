@@ -106,6 +106,13 @@ func resourceElasticsearchCluster() *schema.Resource {
 							MinItems:    1,
 							Elem: &schema.Resource{
 								Schema: map[string]*schema.Schema{
+									"instance_configuration_id": &schema.Schema{
+										Type:        schema.TypeString,
+										Description: "Controls the allocation of this topology element as well as allowed sizes and node_types. It needs to match the id of an existing instance configuration. The default is data.default.",
+										ForceNew:    false,
+										Optional:    true,
+										Default:     "data.default",
+									},
 									"memory_per_node": &schema.Schema{
 										Type:        schema.TypeInt,
 										Description: "The memory capacity in MB for each node of this type built in each zone. The default is 1024.",
@@ -459,6 +466,11 @@ func expandElasticsearchClusterTopology(clusterPlanMap map[string]interface{}) [
 	for _, t := range inputClusterTopologyMap {
 		elementMap := t.(map[string]interface{})
 		clusterTopologyElement := DefaultElasticsearchClusterTopologyElement()
+
+		if v, ok := elementMap["instance_configuration_id"]; ok {
+			clusterTopologyElement.InstanceConfigurationID = v.(string)
+		}
+
 		if v, ok := elementMap["memory_per_node"]; ok {
 			clusterTopologyElement.MemoryPerNode = v.(int)
 		}
@@ -584,6 +596,7 @@ func expandKibanaClusterTopology(kibanaPlan *KibanaClusterPlan, kibanaPlanMap ma
 	for _, t := range inputClusterTopologyMap {
 		elementMap := t.(map[string]interface{})
 		clusterTopologyElement := DefaultKibanaClusterTopologyElement()
+
 		if v, ok := elementMap["memory_per_node"]; ok {
 			clusterTopologyElement.MemoryPerNode = v.(int)
 		}
@@ -700,6 +713,7 @@ func flattenElasticsearchClusterTopology(clusterInfo ElasticsearchClusterInfo, c
 	for i, t := range clusterPlan.ClusterTopology {
 		elementMap := make(map[string]interface{})
 
+		elementMap["instance_configuration_id"] = t.InstanceConfigurationID
 		elementMap["memory_per_node"] = t.MemoryPerNode
 		elementMap["node_count_per_zone"] = t.NodeCountPerZone
 

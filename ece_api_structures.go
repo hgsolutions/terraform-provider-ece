@@ -128,19 +128,21 @@ type ElasticsearchClusterPlansInfo struct {
 // capacity, and type of nodes, and where they can be allocated.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterTopologyElement
 type ElasticsearchClusterTopologyElement struct {
-	MemoryPerNode    int                   `json:"memory_per_node"`
-	NodeCountPerZone int                   `json:"node_count_per_zone"`
-	NodeType         ElasticsearchNodeType `json:"node_type"`
-	ZoneCount        int                   `json:"zone_count"`
+	InstanceConfigurationID string                `json:"instance_configuration_id"`
+	MemoryPerNode           int                   `json:"memory_per_node"`
+	NodeCountPerZone        int                   `json:"node_count_per_zone"`
+	NodeType                ElasticsearchNodeType `json:"node_type"`
+	ZoneCount               int                   `json:"zone_count"`
 }
 
 // DefaultElasticsearchClusterTopologyElement returns a new ElasticsearchClusterTopologyElement with default values.
 func DefaultElasticsearchClusterTopologyElement() *ElasticsearchClusterTopologyElement {
 	return &ElasticsearchClusterTopologyElement{
-		MemoryPerNode:    1024,
-		NodeCountPerZone: 1,
-		NodeType:         *DefaultElasticsearchNodeType(),
-		ZoneCount:        1,
+		InstanceConfigurationID: "data.default",
+		MemoryPerNode:           1024,
+		NodeCountPerZone:        1,
+		NodeType:                *DefaultElasticsearchNodeType(),
+		ZoneCount:               1,
 	}
 }
 

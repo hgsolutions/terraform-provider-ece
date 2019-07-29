@@ -4,7 +4,7 @@
 
 Terraform provider for provisioning Elastic Cloud Enterprise (ECE) Elasticsearch clusters, compatible with v2.2 of ECE. 
 
-Based on work by Phillip Baker: [terraform-provider-elasticsearch](https://github.com/phillbaker/terraform-provider-elasticsearch).
+This provider is based in part on [terraform-provider-elasticsearch](https://github.com/phillbaker/terraform-provider-elasticsearch). Thanks Phillip and others who contributed to that project!
 
 ## Installation
 
@@ -28,7 +28,7 @@ See [the docs for more information](https://www.terraform.io/docs/plugins/basics
 
 - Configuration changes to existing clusters are applied using a cluster plan. This plan is evaluated by ECE to determine what changes are required to the existing cluster. Plans typically result in provisioning of new nodes and decommissioning of existing nodes.
 
-- Not all combination of configuration parameters are supported by all ECE editions. For example, the open-source edition of ECE does not support Machine Learning (ML) nodes. If an unsupported configuration is specified, the ECE REST API may respond immediately with an error message, or the cluster plan may fail. In either case, the provider will respond with the ECE error message and indicate that the create or update failed.
+- ECE does not support every possible combination of configuration parameters. If an unsupported configuration is specified, the ECE REST API may respond immediately with an error message, or the cluster plan may fail. In either case, the provider will respond with the ECE error message and indicate that the create or update failed.
 
 ### Sample Provider and Cluster Terraform configuration
 
@@ -71,6 +71,19 @@ resource "ece_elasticsearch_cluster" "test_cluster" {
   }
 }
 ```
+### Provider Configuration
+The provider supports the following configuration parameters:
+
+- `url`: the fully-qualified URL for the ECE API, including port. Can be specified via an `ECE_URL` environment variable.
+
+- `username`: the ECE username to use for basic authentication. Can be specified via an `ECE_USERNAME` environment variable.
+
+- `password`: the ECE password to use for basic authentication. Can be specified via an `ECE_PASSWORD` environment variable.
+
+- `timeout`: the timeout in seconds for resource operations. The default is 1 hour (3600 seconds).
+
+- `insecure`: whether to disable certificate verification of API calls.
+
 ### Resources
 The provider currently supports a single resource: 
 
@@ -97,7 +110,7 @@ To create an Elasticsearch cluster with only the required inputs, use a configur
 
 ```
 resource "ece_elasticsearch_cluster" "test_cluster" {
-  cluster_name = "Test Cluster 1"
+  cluster_name = "tf-test-1"
 
   plan {
     elasticsearch {
@@ -128,7 +141,7 @@ To create an Elasticsearch cluster with separate master and data nodes, use a co
 
 ```
 resource "ece_elasticsearch_cluster" "test_cluster" {
-  cluster_name = "Test Cluster 2"
+  cluster_name = "tf-test-2"
 
   plan {
     elasticsearch {
@@ -165,7 +178,7 @@ output "test_cluster_topology_0_node_count_per_zone" {
 
 output "test_cluster_topology_0_node_type_master" {
   value       = "${ece_elasticsearch_cluster.test_cluster.plan.0.cluster_topology.0.node_type.0.master}"
-  description = "Whether the role for the the first topology element in the cluster includes master"
+  description = "Whether the role for the first topology element in the cluster includes master"
 }
 
 output "test_cluster_topology_1_memory_per_node" {
@@ -179,7 +192,7 @@ To create an Elasticsearch cluster with an associatd default Kibana cluster, use
 
 ```
 resource "ece_elasticsearch_cluster" "test_cluster" {
-  cluster_name = "Test Cluster 3"
+  cluster_name = "tf-test-3"
 
   plan {
     elasticsearch {
@@ -187,8 +200,7 @@ resource "ece_elasticsearch_cluster" "test_cluster" {
     }
   }
 
-  kibana {
-  }
+  kibana {}
 }
 
 output "test_kibana_cluster_id" {
@@ -202,7 +214,7 @@ To create an Elasticsearch cluster with an associatd configured Kibana cluster, 
 
 ```
 resource "ece_elasticsearch_cluster" "test_cluster" {
-  cluster_name = "Test Cluster 4"
+  cluster_name = "tf-test-4"
 
   plan {
     elasticsearch {
@@ -211,7 +223,7 @@ resource "ece_elasticsearch_cluster" "test_cluster" {
   }
 
   kibana {
-    cluster_name = "Test Cluster 4"
+    cluster_name = "tf-test-4"
 
     plan {
       cluster_topology {
@@ -231,6 +243,58 @@ output "test_kibana_cluster_id" {
 output "test_kibana_cluster_topology_0_memory_per_node" {
   value       = "${ece_elasticsearch_cluster.test_cluster.kibana.0.plan.0.cluster_topology.0.memory_per_node}"
   description = "The memory per node for the first topology element in the Kibana cluster"
+}
+```
+
+#### Create an Elasticsearch cluster with Kibana and a Machine Learning (ML) node.
+To create an Elasticsearch cluster with Kibana and a dedicated Machine Learning node, use a configuration like the following.
+
+**NOTE:** The `instance_configuration_id` must be set to `ml` for the Machine Learning topology element.
+
+```
+resource "ece_elasticsearch_cluster" "test_cluster" {
+  cluster_name = "tf-test-5"
+
+  kibana {}
+
+  plan {
+    elasticsearch {
+      version = "7.2.0"
+    }
+
+    cluster_topology {
+      memory_per_node = 1024
+
+      node_type {
+        master = true
+        data   = true
+        ingest = true
+        ml     = false
+      }
+    }
+
+    cluster_topology {
+      instance_configuration_id = "ml"
+      memory_per_node           = 1024
+
+      node_type {
+        master = false
+        data   = false
+        ingest = false
+        ml     = true
+      }
+    }
+  }
+}
+
+output "test_cluster_topology_1_instance_configuration_id" {
+  value       = "${ece_elasticsearch_cluster.test_cluster.plan.0.cluster_topology.1.instance_configuration_id}"
+  description = "The instance configuration id for the ML topology element"
+}
+
+output "test_cluster_topology_1_node_type_ml" {
+  value       = "${ece_elasticsearch_cluster.test_cluster.plan.0.cluster_topology.0.node_type.0.ml}"
+  description = "Whether the role for the ML topology element includes ML"
 }
 ```
 
