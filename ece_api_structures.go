@@ -15,6 +15,7 @@ type ClusterCrudResponse struct {
 	Credentials            ClusterCredentials `json:"credentials"`
 	ElasticsearchClusterID string             `json:"elasticsearch_cluster_id"`
 	KibanaClusterID        string             `json:"kibana_cluster_id"`
+	CloudID                string             `json:"cloud_id"`
 }
 
 // ClusterInstanceInfo defines information about each instance in the Elasticsearch cluster.
@@ -79,6 +80,118 @@ type CreateKibanaRequest struct {
 	ClusterName            string             `json:"cluster_name"`
 	ElasticsearchClusterID string             `json:"elasticsearch_cluster_id"`
 	Plan                   *KibanaClusterPlan `json:"plan"`
+}
+
+// DeploymentCreateRequest defines the request body for a deployment.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentCreateRequest
+type DeploymentCreateRequest struct {
+	Name      string                     `json:"name"`
+	Resources *DeploymentCreateResources `json:"resources"`
+	// Settings *DeploymentCreateSettings `json:"settings"`
+}
+
+// DeploymentCreateResources defines the resources that belong to a deployment.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentCreateResources
+type DeploymentCreateResources struct {
+	Elasticsearch []*ElasticsearchPayload `json:"elasticsearch"`
+	Kibana        []*KibanaPayload        `json:"kibana"`
+}
+
+// DeploymentCreateResponse defines the response returned from the deployment endpoint.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentCreateResponse
+type DeploymentCreateResponse struct {
+	Created   bool                  `json:"created"`
+	ID        string                `json:"id"`
+	Name      string                `json:"name"`
+	Resources []*DeploymentResource `json:"resources"`
+}
+
+// DeploymentResource defines the data for a deployment resource.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentResource
+type DeploymentResource struct {
+	CloudID                   string             `json:"cloud_id"`
+	Credentials               ClusterCredentials `json:"credentials"`
+	ElasticsearchClusterRefID string             `json:"elasticsearch_cluster_ref_id"`
+	ID                        string             `json:"id"`
+	Kind                      string             `json:"kind"`
+	RefID                     string             `json:"ref_id"`
+	Region                    string             `json:"region"`
+	SecretToken               string             `json:"secret_token"`
+}
+
+// DeploymentGetResponse defines a given deployment.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentGetResponse
+type DeploymentGetResponse struct {
+	Healthy   bool                 `json:"healthy"`
+	ID        string               `json:"id"`
+	Name      string               `json:"name"`
+	Resources *DeploymentResources `json:"resources"`
+}
+
+// DeploymentResources defines resources belonging to a deployment.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentResources
+type DeploymentResources struct {
+	Elasticsearch []*ElasticsearchResourceInfo `json:"elasticsearch"`
+	Kibana        []*KibanaResourceInfo        `json:"kibana"`
+}
+
+// ElasticsearchResourceInfo defines an Elasticsearch resource belonging to a deployment.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchResourceInfo
+type ElasticsearchResourceInfo struct {
+	ID     string                    `json:"id"`
+	Info   *ElasticsearchClusterInfo `json:"info"`
+	RefID  string                    `json:"ref_id"`
+	Region string                    `json:"region"`
+}
+
+// KibanaResourceInfo defines a Kibana resource belonging to a deployment.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaResourceInfo
+type KibanaResourceInfo struct {
+	ElasticsearchClusterRefID string             `json:"elasticsearch_cluster_ref_id "`
+	ID                        string             `json:"id"`
+	Info                      *KibanaClusterInfo `json:"info"`
+	RefID                     string             `json:"ref_id"`
+	Region                    string             `json:"region"`
+}
+
+// ElasticsearchPayload defines the Elasticsearch Cluster creation request.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchPayload
+type ElasticsearchPayload struct {
+	// DisplayName string                    `json:"display_name"`
+	Plan   *ElasticsearchClusterPlan `json:"plan"`
+	RefID  string                    `json:"ref_id"`
+	Region string                    `json:"region"`
+	// Settings ElasticsearchClusterSettings `json:"settings"`
+}
+
+// KibanaPayload defines the Kibana creation request.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaPayload
+type KibanaPayload struct {
+	// DiaplayName               string             `json:"display_name"`
+	ElasticsearchClusterRefID string             `json:"elasticsearch_cluster_ref_id"`
+	Plan                      *KibanaClusterPlan `json:"plan"`
+	RefID                     string             `json:"ref_id"`
+	Region                    string             `json:"region"`
+	// Settings KibanaClusterSettings `json:"settings"`
+}
+
+// DefaultElasticsearchPayload returns a new ElasticsearchPayload with default values.
+func DefaultElasticsearchPayload() *ElasticsearchPayload {
+	return &ElasticsearchPayload{
+		Plan:   nil,
+		RefID:  "main-elasticsearch",
+		Region: "us-east-1",
+	}
+}
+
+// DefaultKibanaPayload returns a new KibanaPayload with default values.
+func DefaultKibanaPayload() *KibanaPayload {
+	return &KibanaPayload{
+		ElasticsearchClusterRefID: "main-elasticsearch",
+		Plan:                      DefaultKibanaClusterPlan(),
+		RefID:                     "main-kibana",
+		Region:                    "us-east-1",
+	}
 }
 
 // ElasticsearchClusterInfo defines the information for an Elasticsearch cluster.
@@ -281,4 +394,18 @@ type KibanaSubClusterInfo struct {
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#TransientElasticsearchPlanConfiguration
 type TransientElasticsearchPlanConfiguration struct {
 	PlanConfiguration ElasticsearchPlanControlConfiguration `json:"plan_configuration"`
+}
+
+type LoginRequest struct {
+	LoginState LoginState `json:"login_state"`
+	Password   string     `json:"password"`
+	Username   string     `json:"email"`
+}
+
+type LoginState struct {
+	Path string `json:"path,omitempty"`
+}
+
+type TokenResponse struct {
+	Token string `json:"token"`
 }

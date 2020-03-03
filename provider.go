@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform/helper/schema"
@@ -97,6 +98,17 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		Username:   username,
 		Password:   password,
 		Timeout:    timeout,
+	}
+
+	if strings.Contains(rawURL, "cloud.elastic.co") {
+		eceClient.IsElasticCloud = true
+		err := eceClient.Login()
+		if err == nil {
+			log.Printf("[DEBUG] Elastic-Cloud Login succeeded.")
+		} else {
+			log.Printf("[DEBUG] Elastic-Cloud Login failed: %v\n", err)
+			return nil, err
+		}
 	}
 
 	return eceClient, nil

@@ -6,14 +6,17 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform/helper/resource"
 )
 
-const elasticsearchResource = "/api/v1/clusters/elasticsearch"
-const kibanaResource = "/api/v1/clusters/kibana"
+const baseEndpoint = "/api/v1"
+const elasticsearchResource = baseEndpoint + "/clusters/elasticsearch"
+const kibanaResource = baseEndpoint + "/clusters/kibana"
+const deploymentResource = baseEndpoint + "/deployments"
 const jsonContentType = "application/json"
 
 // ECEClient is a client used for interactions with the ECE API.
@@ -32,6 +35,221 @@ type ECEClient struct {
 
 	// Timeout in seconds for resource operations.
 	Timeout int
+
+	// Token to be used for requests as a bearer token.
+	AuthToken string
+
+	// True if interacting wtih Elastic-Cloud.
+	IsElasticCloud bool
+}
+
+// BearerToken constructs and returns the authentication header.
+func (c *ECEClient) BearerToken() string {
+	return "Bearer " + c.AuthToken
+}
+
+// SetRequestAuth Conditionally sets the header for ECE or Elastic-Cloud.
+func (c *ECEClient) SetRequestAuth(req *http.Request) {
+	if c.IsElasticCloud {
+		req.Header.Set("Authorization", c.BearerToken())
+	} else {
+		req.SetBasicAuth(c.Username, c.Password)
+	}
+}
+
+// Login attempts to log in using username and password sets the ECEClient's AuthToken.
+func (c *ECEClient) Login() (err error) {
+	log.Printf("[DEBUG] LoginToECE : %s\n", c.Username)
+
+	// Note: This URL is different from the documented /api/v1/users/auth/_login.
+	resourceURL := c.BaseURL + baseEndpoint + "/users/_login"
+	log.Printf("[DEBUG] LoginToECE request url: %s\n", resourceURL)
+
+	loginRequest := LoginRequest{
+		Password: c.Password,
+		Username: c.Username,
+	}
+
+	jsonData, err := json.Marshal(loginRequest)
+	if err != nil {
+		return err
+	}
+
+	jsonString := string(jsonData)
+
+	body := strings.NewReader(jsonString)
+	req, err := http.NewRequest("POST", resourceURL, body)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("[DEBUG] LoginToECE response: %v\n", resp)
+
+	respBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("%q: LoginToECE failed: %v", c.Username, string(respBytes))
+	}
+
+	var token TokenResponse
+	err = json.Unmarshal(respBytes, &token)
+	if err != nil {
+		return err
+	}
+
+	c.AuthToken = token.Token
+
+	return nil
+}
+
+// CreateDeployment creates a new deployment using the specified create request.
+func (c *ECEClient) CreateDeployment(deploymentCreateRequest DeploymentCreateRequest) (deploymentCreateResponse *DeploymentCreateResponse, err error) {
+	jsonData, err := json.Marshal(deploymentCreateRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonString := string(jsonData)
+	log.Printf("[DEBUG] CreateDeployment request body: %s\n", jsonString)
+
+	body := strings.NewReader(jsonString)
+	resourceURL := c.BaseURL + deploymentResource
+	log.Printf("[DEBUG] CreateDeployment Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("POST", resourceURL, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	c.SetRequestAuth(req)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] CreateDeployment response: %v\n", resp)
+
+	respBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 201 {
+		return nil, fmt.Errorf("CreateDeployment failed: %v", string(respBytes))
+	}
+
+	log.Printf("[DEBUG] CreateDeployment response body: %v\n", string(respBytes))
+
+	err = json.Unmarshal(respBytes, &deploymentCreateResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return deploymentCreateResponse, err
+}
+
+// GetDeployment returns information for an existing deployment.
+func (c *ECEClient) GetDeployment(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] GetDeployment ID: %s\n", id)
+
+	resourceURL := c.BaseURL + deploymentResource + "/" + id
+	log.Printf("[DEBUG] GetDeployment Resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("GET", resourceURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	c.SetRequestAuth(req)
+
+	resp, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] GetDeployment response: %v\n", resp)
+
+	if resp.StatusCode != 200 && resp.StatusCode != 404 {
+		respBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%q: deployment could not be retrieved: %v", id, string(respBytes))
+	}
+
+	return resp, nil
+}
+
+// DeleteDeployment deletes an existing deployment.
+func (c *ECEClient) DeleteDeployment(id string) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] DeleteDeployment ID: %s\n", id)
+
+	// NOTE: A deployment must be successfully _shutdown first before it can be deleted.
+	log.Printf("[DEBUG] Deleting deployment ID: %s\n", id)
+	resp, err = c.ShutdownDeployment(id, true, true)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// ShutdownDeployment shuts down an existing deployment.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/Deployment_-_CRUD.html#shutdown-deployment
+func (c *ECEClient) ShutdownDeployment(id string, hide bool, skipSnapshot bool) (resp *http.Response, err error) {
+	log.Printf("[DEBUG] ShutdownDeployment ID: %s\n", id)
+
+	resourceURL := c.BaseURL + deploymentResource + "/" + id + "/_shutdown?hide=" + strconv.FormatBool(hide) + "&skip_snapshot=" + strconv.FormatBool(skipSnapshot)
+	log.Printf("[DEBUG] ShutdownDeployment resource URL: %s\n", resourceURL)
+	req, err := http.NewRequest("POST", resourceURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", jsonContentType)
+	c.SetRequestAuth(req)
+
+	resp, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[DEBUG] ShutdownDeployment response: %v\n", resp)
+
+	if resp.StatusCode != 202 {
+		respBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%q: elasticsearch cluster could not be shutdown: %v", id, string(respBytes))
+	}
+
+	return resp, nil
+}
+
+// WaitForDeploymentStatus waits for a deployment to be deleted.
+func (c *ECEClient) WaitForDeploymentStatus(id string, allowMissing bool) error {
+	timeoutSeconds := time.Second * time.Duration(c.Timeout)
+	log.Printf("[DEBUG] WaitForDeploymentStatus will wait for %v seconds for deployment ID: %s\n", timeoutSeconds, id)
+
+	return resource.Retry(timeoutSeconds, func() *resource.RetryError {
+		resp, err := c.GetDeployment(id)
+		if err != nil {
+			return resource.NonRetryableError(err)
+		}
+
+		if resp.StatusCode == 404 && allowMissing {
+			return nil
+		}
+
+		return resource.RetryableError(
+			fmt.Errorf("%q: timeout while waiting for the deployment to shutdown", id))
+	})
 }
 
 // CreateElasticsearchCluster creates a new elasticsearch cluster using the specified create request.
@@ -78,7 +296,7 @@ func (c *ECEClient) CreateElasticsearchCluster(createClusterRequest CreateElasti
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -136,7 +354,7 @@ func (c *ECEClient) CreateKibanaCluster(createKibanaRequest CreateKibanaRequest)
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -187,7 +405,7 @@ func (c *ECEClient) DeleteElasticsearchCluster(id string) (resp *http.Response, 
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -227,7 +445,7 @@ func (c *ECEClient) DeleteKibanaCluster(id string) (resp *http.Response, err err
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -256,7 +474,7 @@ func (c *ECEClient) GetElasticsearchCluster(id string) (resp *http.Response, err
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -286,7 +504,7 @@ func (c *ECEClient) GetElasticsearchClusterPlan(id string) (resp *http.Response,
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -316,7 +534,7 @@ func (c *ECEClient) GetElasticsearchClusterPlanActivity(id string) (resp *http.R
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -345,7 +563,7 @@ func (c *ECEClient) GetKibanaCluster(id string) (resp *http.Response, err error)
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -375,7 +593,7 @@ func (c *ECEClient) GetKibanaClusterPlanActivity(id string) (resp *http.Response
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -440,7 +658,7 @@ func (c *ECEClient) UpdateElasticsearchCluster(id string, clusterPlan Elasticsea
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -478,7 +696,7 @@ func (c *ECEClient) UpdateElasticsearchClusterMetadata(id string, metadata Clust
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -515,7 +733,7 @@ func (c *ECEClient) UpdateKibanaCluster(id string, kibanaPlan *KibanaClusterPlan
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -553,7 +771,7 @@ func (c *ECEClient) UpdateKibanaClusterMetadata(id string, metadata ClusterMetad
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -582,7 +800,7 @@ func (c *ECEClient) ShutdownElasticsearchCluster(id string) (resp *http.Response
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {
@@ -611,7 +829,7 @@ func (c *ECEClient) ShutdownKibanaCluster(id string) (resp *http.Response, err e
 	}
 
 	req.Header.Set("Content-Type", jsonContentType)
-	req.SetBasicAuth(c.Username, c.Password)
+	c.SetRequestAuth(req)
 
 	resp, err = c.HTTPClient.Do(req)
 	if err != nil {

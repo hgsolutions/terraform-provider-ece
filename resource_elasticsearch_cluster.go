@@ -19,10 +19,10 @@ func resourceElasticsearchCluster() *schema.Resource {
 	// github.com/terraform-providers/terraform-provider-aws/aws/resource_aws_elasticsearch_domain.go
 
 	return &schema.Resource{
-		Create: resourceElasticsearchClusterCreate,
-		Read:   resourceElasticsearchClusterRead,
-		Update: resourceElasticsearchClusterUpdate,
-		Delete: resourceElasticsearchClusterDelete,
+		Create: resourceDeploymentCreate,
+		Read:   resourceDeploymentRead,
+		Update: nil,
+		Delete: resourceDeploymentDelete,
 		Schema: map[string]*schema.Schema{
 			"cluster_name": &schema.Schema{
 				Type:        schema.TypeString,
@@ -230,6 +230,123 @@ func resourceElasticsearchCluster() *schema.Resource {
 			State: schema.ImportStatePassthrough,
 		},
 	}
+}
+
+func resourceDeploymentCreate(d *schema.ResourceData, meta interface{}) error {
+	client := meta.(*ECEClient)
+
+	deploymentName := d.Get("cluster_name").(string)
+	log.Printf("[DEBUG] Creating deployment with name: %s\n", deploymentName)
+
+	clusterPlan, err := expandElasticsearchClusterPlan(d, meta)
+	if err != nil {
+		return err
+	}
+
+	kibanaRequest, err := expandKibanaCreateRequest(d, meta)
+	if err != nil {
+		return err
+	}
+
+	elasticsearchPayload := []*ElasticsearchPayload{DefaultElasticsearchPayload()}
+	elasticsearchPayload[0].Plan = clusterPlan
+
+	kibanaPayload := []*KibanaPayload{DefaultKibanaPayload()}
+	kibanaPayload[0].Plan = kibanaRequest.Plan
+
+	deploymentCreateResources := DeploymentCreateResources{
+		Elasticsearch: elasticsearchPayload,
+		Kibana:        kibanaPayload,
+	}
+
+	deploymentCreateRequest := DeploymentCreateRequest{
+		Name:      deploymentName,
+		Resources: &deploymentCreateResources,
+	}
+
+	createResponse, err := client.CreateDeployment(deploymentCreateRequest)
+
+	d.SetId(createResponse.Resources[0].CloudID)
+	err = d.Set("elasticsearch_username", createResponse.Resources[0].Credentials.Username)
+	if err != nil {
+		return err
+	}
+	err = d.Set("elasticsearch_password", createResponse.Resources[0].Credentials.Password)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func resourceDeploymentDelete(d *schema.ResourceData, meta interface{}) error {
+	client := meta.(*ECEClient)
+	deploymentID := d.Id()
+
+	log.Printf("[DEBUG] Deleting deployment ID: %s\n", deploymentID)
+	_, err := client.DeleteDeployment(deploymentID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func resourceDeploymentRead(d *schema.ResourceData, meta interface{}) error {
+	client := meta.(*ECEClient)
+
+	deploymentID := d.Id()
+	log.Printf("[DEBUG] Reading deployment information for ID: %s\n", deploymentID)
+
+	resp, err := client.GetDeployment(deploymentID)
+	if err != nil {
+		return err
+	}
+
+	// If the resource does not exist, inform Terraform. We want to immediately
+	// return here to prevent further processing.
+	if resp.StatusCode == 404 {
+		log.Printf("[DEBUG] Deployment ID not found: %s\n", deploymentID)
+		d.SetId("")
+		return nil
+	}
+
+	respBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("[DEBUG] Deployment response body: %v\n", string(respBytes))
+
+	var deploymentInfo DeploymentGetResponse
+	err = json.Unmarshal(respBytes, &deploymentInfo)
+	if err != nil {
+		return err
+	}
+
+	plan := flattenDeploymentPlan(deploymentInfo)
+	log.Printf("[DEBUG] Setting deployment plan: %v\n", plan)
+	d.Set("plan", plan)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func flattenDeploymentPlan(deploymentInfo DeploymentGetResponse) []map[string]interface{} {
+	clusterPlanMaps := make([]map[string]interface{}, 1)
+
+	elasticserachClusterInfo := deploymentInfo.Resources.Elasticsearch[0].Info
+	deploymentPlan := elasticserachClusterInfo.PlanInfo.Current.Plan
+
+	clusterPlanMap := make(map[string]interface{})
+	clusterPlanMap["cluster_topology"] = flattenElasticsearchClusterTopology(*elasticserachClusterInfo, deploymentPlan)
+	clusterPlanMap["elasticsearch"] = flattenElasticsearchConfiguration(deploymentPlan.Elasticsearch)
+
+	clusterPlanMaps[0] = clusterPlanMap
+
+	return clusterPlanMaps
 }
 
 func resourceElasticsearchClusterCreate(d *schema.ResourceData, meta interface{}) error {
