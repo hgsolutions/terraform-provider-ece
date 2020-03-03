@@ -1,8 +1,8 @@
 provider "ece" {
-  url      = "http://ec2-123-456-789-101.compute-1.amazonaws.com:12400"
+  url      = "cloud.elastic.co"
   username = "admin"
   password = "******"
-  insecure = true                                                      # to bypass certificate check
+  insecure = false                                                     # to bypass certificate check
   timeout  = 600                                                       # timeout after 10 minutes
 }
 
@@ -11,7 +11,7 @@ resource "ece_elasticsearch_cluster" "test_cluster" {
 
   plan {
     elasticsearch {
-      version = "7.2.0"
+      version = "7.6.0"
     }
 
     cluster_topology {
@@ -68,16 +68,6 @@ output "test_cluster_topology" {
   description = "The topology of the cluster."
 }
 
-output "test_cluster_topology_0_node_count_per_zone" {
-  value       = "${ece_elasticsearch_cluster.test_cluster.plan.0.cluster_topology.0.node_count_per_zone}"
-  description = "The node count per zone of first topology element in the cluster"
-}
-
-output "test_cluster_topology_1_memory_per_node" {
-  value       = "${ece_elasticsearch_cluster.test_cluster.plan.0.cluster_topology.1.memory_per_node}"
-  description = "The memory per node for the second topology element in the cluster"
-}
-
 output "test_cluster_username" {
   value       = "${ece_elasticsearch_cluster.test_cluster.elasticsearch_username}"
   description = "The username for logging in to the cluster."
@@ -87,14 +77,4 @@ output "test_cluster_password" {
   value       = "${ece_elasticsearch_cluster.test_cluster.elasticsearch_password}"
   description = "The password for logging in to the cluster."
   sensitive   = true
-}
-
-output "test_kibana_cluster_id" {
-  value       = "${ece_elasticsearch_cluster.test_cluster.kibana_cluster_id}"
-  description = "The ID of the Kibana cluster"
-}
-
-output "test_kibana_cluster_topology_0_memory_per_node" {
-  value       = "${ece_elasticsearch_cluster.test_cluster.kibana.0.plan.0.cluster_topology.0.memory_per_node}"
-  description = "The memory per node for the first topology element in the Kibana cluster"
 }

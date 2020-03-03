@@ -220,11 +220,6 @@ func resourceElasticsearchCluster() *schema.Resource {
 				Computed:    true,
 				Description: "The password for the created cluster.",
 			},
-			"kibana_cluster_id": &schema.Schema{
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The ID for the created Kibana cluster.",
-			},
 		},
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
