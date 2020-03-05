@@ -1,5 +1,114 @@
 package main
 
+// DefaultElasticsearchPayload returns a new ElasticsearchPayload with default values.
+func DefaultElasticsearchPayload() *ElasticsearchPayload {
+	return &ElasticsearchPayload{
+		Plan:     *DefaultElasticsearchClusterPlan(),
+		RefID:    "main-elasticsearch",
+		Region:   "us-east-1",
+		Settings: *DefaultElasticsearchClusterSettings(),
+	}
+}
+
+// DefaultKibanaPayload returns a new KibanaPayload with default values.
+func DefaultKibanaPayload() *KibanaPayload {
+	return &KibanaPayload{
+		ElasticsearchClusterRefID: "main-elasticsearch",
+		Plan:                      *DefaultKibanaClusterPlan(),
+		RefID:                     "main-kibana",
+		Region:                    "us-east-1",
+	}
+}
+
+// DefaultElasticsearchClusterPlan returns a new ElasticsearchClusterPlan with default values.
+func DefaultElasticsearchClusterPlan() *ElasticsearchClusterPlan {
+	return &ElasticsearchClusterPlan{
+		ClusterTopology:    []ElasticsearchClusterTopologyElement{*DefaultElasticsearchClusterTopologyElement()},
+		DeploymentTemplate: *DefaultDeploymentTemplateReference(),
+		Elasticsearch:      *DefaultElasticsearchConfiguration(),
+	}
+}
+
+// DefaultKibanaClusterPlan returns a new KibanaClusterPlan with default values.
+func DefaultKibanaClusterPlan() *KibanaClusterPlan {
+	return &KibanaClusterPlan{
+		ClusterTopology: []KibanaClusterTopologyElement{*DefaultKibanaClusterTopologyElement()},
+		Kibana:          *DefaultKibanaConfiguration(),
+	}
+}
+
+// DefaultElasticsearchClusterTopologyElement returns a new ElasticsearchClusterTopologyElement with default values.
+func DefaultElasticsearchClusterTopologyElement() *ElasticsearchClusterTopologyElement {
+	return &ElasticsearchClusterTopologyElement{
+		InstanceConfigurationID: "aws.data.highio.i3",
+		NodeType:                *DefaultElasticsearchNodeType(),
+		Size:                    *DefaultTopologySize(),
+		ZoneCount:               1,
+	}
+}
+
+// DefaultKibanaClusterTopologyElement returns a new KibanaClusterTopologyElement with default values.
+func DefaultKibanaClusterTopologyElement() *KibanaClusterTopologyElement {
+	return &KibanaClusterTopologyElement{
+		InstanceConfigurationID: "aws.kibana.r4",
+		Size:                    *DefaultTopologySize(),
+		ZoneCount:               1,
+	}
+}
+
+// DefaultElasticsearchNodeType creates a new ElasticsearchNodeType with default values.
+func DefaultElasticsearchNodeType() *ElasticsearchNodeType {
+	return &ElasticsearchNodeType{
+		Data:   true,
+		Ingest: true,
+		Master: true,
+		ML:     false,
+	}
+}
+
+// DefaultElasticsearchConfiguration returns a new ElasticsearchConfiguration with default values.
+func DefaultElasticsearchConfiguration() *ElasticsearchConfiguration {
+	return &ElasticsearchConfiguration{
+		Version: "7.6.0",
+	}
+}
+
+// DefaultKibanaConfiguration returns a new KibanaConfiguration with default values.
+func DefaultKibanaConfiguration() *KibanaConfiguration {
+	return &KibanaConfiguration{
+		Version: "7.6.0",
+	}
+}
+
+// DefaultTopologySize returns a new DefaultTopologySize with default values.
+func DefaultTopologySize() *TopologySize {
+	return &TopologySize{
+		Resource: "memory",
+		Value:    1024,
+	}
+}
+
+// DefaultElasticsearchSystemSettings returns a new ElasticsearchSystemSettings with default values.
+func DefaultElasticsearchSystemSettings() *ElasticsearchSystemSettings {
+	return &ElasticsearchSystemSettings{
+		UseDiskThreshold: true,
+	}
+}
+
+// DefaultDeploymentTemplateReference returns a new DeploymentTemplateReference with default values.
+func DefaultDeploymentTemplateReference() *DeploymentTemplateReference {
+	return &DeploymentTemplateReference{
+		ID: "aws-io-optimized",
+	}
+}
+
+// DefaultElasticsearchClusterSettings returns a new ElasticsearchClusterSettings with default values.
+func DefaultElasticsearchClusterSettings() *ElasticsearchClusterSettings {
+	return &ElasticsearchClusterSettings{
+		DedicatedMastersThreshold: int32(6),
+	}
+}
+
 // ClusterCredentials defines the username and password for the new Elasticsearch cluster, which
 // is returned from the Elasticsearch cluster create command.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ClusterCredentials
@@ -63,7 +172,7 @@ type ClusterTopologyInfo struct {
 type CreateElasticsearchClusterRequest struct {
 	ClusterName string                                    `json:"cluster_name"`
 	Kibana      *CreateKibanaInCreateElasticsearchRequest `json:"kibana"`
-	Plan        ElasticsearchClusterPlan                  `json:"plan"`
+	Plan        *ElasticsearchClusterPlan                 `json:"plan"`
 }
 
 // CreateKibanaInCreateElasticsearchRequest defines the request body for creating a Kibana instance,
@@ -106,6 +215,15 @@ type DeploymentCreateResponse struct {
 	Resources []*DeploymentResource `json:"resources"`
 }
 
+// DeploymentGetResponse defines a given deployment.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentGetResponse
+type DeploymentGetResponse struct {
+	Healthy   bool                 `json:"healthy"`
+	ID        string               `json:"id"`
+	Name      string               `json:"name"`
+	Resources *DeploymentResources `json:"resources"`
+}
+
 // DeploymentResource defines the data for a deployment resource.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentResource
 type DeploymentResource struct {
@@ -119,20 +237,24 @@ type DeploymentResource struct {
 	SecretToken               string             `json:"secret_token"`
 }
 
-// DeploymentGetResponse defines a given deployment.
-// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentGetResponse
-type DeploymentGetResponse struct {
-	Healthy   bool                 `json:"healthy"`
-	ID        string               `json:"id"`
-	Name      string               `json:"name"`
-	Resources *DeploymentResources `json:"resources"`
-}
-
 // DeploymentResources defines resources belonging to a deployment.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentResources
 type DeploymentResources struct {
 	Elasticsearch []*ElasticsearchResourceInfo `json:"elasticsearch"`
 	Kibana        []*KibanaResourceInfo        `json:"kibana"`
+}
+
+// DeploymentTemplateReference defines the template used to create the plan.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#DeploymentTemplateReference
+type DeploymentTemplateReference struct {
+	ID string `json:"id"`
+	// Version string `json:"version"`
+}
+
+// ElasticsearchClusterSettings defines the settings for an Elasticsearch cluster.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterSettings
+type ElasticsearchClusterSettings struct {
+	DedicatedMastersThreshold int32 `json:"dedicated_masters_threshold"`
 }
 
 // ElasticsearchResourceInfo defines an Elasticsearch resource belonging to a deployment.
@@ -142,56 +264,6 @@ type ElasticsearchResourceInfo struct {
 	Info   *ElasticsearchClusterInfo `json:"info"`
 	RefID  string                    `json:"ref_id"`
 	Region string                    `json:"region"`
-}
-
-// KibanaResourceInfo defines a Kibana resource belonging to a deployment.
-// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaResourceInfo
-type KibanaResourceInfo struct {
-	ElasticsearchClusterRefID string             `json:"elasticsearch_cluster_ref_id "`
-	ID                        string             `json:"id"`
-	Info                      *KibanaClusterInfo `json:"info"`
-	RefID                     string             `json:"ref_id"`
-	Region                    string             `json:"region"`
-}
-
-// ElasticsearchPayload defines the Elasticsearch Cluster creation request.
-// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchPayload
-type ElasticsearchPayload struct {
-	// DisplayName string                    `json:"display_name"`
-	Plan   *ElasticsearchClusterPlan `json:"plan"`
-	RefID  string                    `json:"ref_id"`
-	Region string                    `json:"region"`
-	// Settings ElasticsearchClusterSettings `json:"settings"`
-}
-
-// KibanaPayload defines the Kibana creation request.
-// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaPayload
-type KibanaPayload struct {
-	// DiaplayName               string             `json:"display_name"`
-	ElasticsearchClusterRefID string             `json:"elasticsearch_cluster_ref_id"`
-	Plan                      *KibanaClusterPlan `json:"plan"`
-	RefID                     string             `json:"ref_id"`
-	Region                    string             `json:"region"`
-	// Settings KibanaClusterSettings `json:"settings"`
-}
-
-// DefaultElasticsearchPayload returns a new ElasticsearchPayload with default values.
-func DefaultElasticsearchPayload() *ElasticsearchPayload {
-	return &ElasticsearchPayload{
-		Plan:   nil,
-		RefID:  "main-elasticsearch",
-		Region: "us-east-1",
-	}
-}
-
-// DefaultKibanaPayload returns a new KibanaPayload with default values.
-func DefaultKibanaPayload() *KibanaPayload {
-	return &KibanaPayload{
-		ElasticsearchClusterRefID: "main-elasticsearch",
-		Plan:                      DefaultKibanaClusterPlan(),
-		RefID:                     "main-kibana",
-		Region:                    "us-east-1",
-	}
 }
 
 // ElasticsearchClusterInfo defines the information for an Elasticsearch cluster.
@@ -209,10 +281,11 @@ type ElasticsearchClusterInfo struct {
 // ElasticsearchClusterPlan defines the plan for an Elasticsearch cluster.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterPlan
 type ElasticsearchClusterPlan struct {
-	ClusterTopology []ElasticsearchClusterTopologyElement   `json:"cluster_topology"`
-	Elasticsearch   ElasticsearchConfiguration              `json:"elasticsearch"`
-	Transient       TransientElasticsearchPlanConfiguration `json:"transient,omitempty"`
-	ZoneCount       int                                     `json:"zone_count"`
+	ClusterTopology    []ElasticsearchClusterTopologyElement `json:"cluster_topology"`
+	DeploymentTemplate DeploymentTemplateReference           `json:"deployment_template"`
+	Elasticsearch      ElasticsearchConfiguration            `json:"elasticsearch"`
+	// Transient       TransientElasticsearchPlanConfiguration `json:"transient,omitempty"`
+	// ZoneCount       int                                     `json:"zone_count"`
 }
 
 // ElasticsearchClusterPlanInfo defines information about an Elasticsearch cluster plan.
@@ -241,29 +314,19 @@ type ElasticsearchClusterPlansInfo struct {
 // capacity, and type of nodes, and where they can be allocated.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterTopologyElement
 type ElasticsearchClusterTopologyElement struct {
-	InstanceConfigurationID string                `json:"instance_configuration_id"`
-	MemoryPerNode           int                   `json:"memory_per_node"`
-	NodeCountPerZone        int                   `json:"node_count_per_zone"`
-	NodeType                ElasticsearchNodeType `json:"node_type"`
-	ZoneCount               int                   `json:"zone_count"`
-}
-
-// DefaultElasticsearchClusterTopologyElement returns a new ElasticsearchClusterTopologyElement with default values.
-func DefaultElasticsearchClusterTopologyElement() *ElasticsearchClusterTopologyElement {
-	return &ElasticsearchClusterTopologyElement{
-		InstanceConfigurationID: "data.default",
-		MemoryPerNode:           1024,
-		NodeCountPerZone:        1,
-		NodeType:                *DefaultElasticsearchNodeType(),
-		ZoneCount:               1,
-	}
+	InstanceConfigurationID string `json:"instance_configuration_id"`
+	// MemoryPerNode           int                   `json:"memory_per_node"`
+	// NodeCountPerZone        int                   `json:"node_count_per_zone"`
+	Size      TopologySize          `json:"size"`
+	NodeType  ElasticsearchNodeType `json:"node_type"`
+	ZoneCount int                   `json:"zone_count"`
 }
 
 // ElasticsearchConfiguration defines the Elasticsearch cluster settings.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchConfiguration
 type ElasticsearchConfiguration struct {
-	SystemSettings ElasticsearchSystemSettings `json:"system_settings"`
-	Version        string                      `json:"version"`
+	//SystemSettings ElasticsearchSystemSettings `json:"system_settings"`
+	Version string `json:"version"`
 }
 
 // ElasticsearchNodeType defines the combinations of Elasticsearch node types.
@@ -276,14 +339,14 @@ type ElasticsearchNodeType struct {
 	ML     bool `json:"ml"`
 }
 
-// DefaultElasticsearchNodeType creates a new ElasticsearchNodeType with default values.
-func DefaultElasticsearchNodeType() *ElasticsearchNodeType {
-	return &ElasticsearchNodeType{
-		Data:   true,
-		Ingest: true,
-		Master: true,
-		ML:     false,
-	}
+// ElasticsearchPayload defines the Elasticsearch Cluster creation request.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchPayload
+type ElasticsearchPayload struct {
+	// DisplayName string                    `json:"display_name"`
+	Plan     ElasticsearchClusterPlan     `json:"plan"`
+	RefID    string                       `json:"ref_id"`
+	Region   string                       `json:"region"`
+	Settings ElasticsearchClusterSettings `json:"settings"`
 }
 
 // ElasticsearchPlanControlConfiguration defines the configuration settings for the timeout and fallback parameters.
@@ -300,13 +363,6 @@ type ElasticsearchSystemSettings struct {
 	UseDiskThreshold bool `json:"use_disk_threshold"`
 }
 
-// DefaultElasticsearchSystemSettings returns a new ElasticsearchSystemSettings with default values.
-func DefaultElasticsearchSystemSettings() *ElasticsearchSystemSettings {
-	return &ElasticsearchSystemSettings{
-		UseDiskThreshold: true,
-	}
-}
-
 // KibanaClusterInfo defines the top-level object information for a Kibana instance.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaClusterInfo
 type KibanaClusterInfo struct {
@@ -321,16 +377,7 @@ type KibanaClusterInfo struct {
 type KibanaClusterPlan struct {
 	ClusterTopology []KibanaClusterTopologyElement `json:"cluster_topology"`
 	Kibana          KibanaConfiguration            `json:"kibana"`
-	ZoneCount       int                            `json:"zone_count"`
-}
-
-// DefaultKibanaClusterPlan returns a new KibanaClusterPlan with default values.
-func DefaultKibanaClusterPlan() *KibanaClusterPlan {
-	return &KibanaClusterPlan{
-		ClusterTopology: []KibanaClusterTopologyElement{*DefaultKibanaClusterTopologyElement()},
-		Kibana:          *DefaultKibanaConfiguration(),
-		ZoneCount:       1,
-	}
+	// ZoneCount       int                            `json:"zone_count"`
 }
 
 // KibanaClusterPlanInfo defines information about the current, pending, or past Kibana instance plan.
@@ -357,29 +404,39 @@ type KibanaClusterPlansInfo struct {
 // type of nodes, and where they can be allocated.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaClusterTopologyElement
 type KibanaClusterTopologyElement struct {
-	MemoryPerNode    int `json:"memory_per_node"`
-	NodeCountPerZone int `json:"node_count_per_zone"`
-	ZoneCount        int `json:"zone_count"`
-}
-
-// DefaultKibanaClusterTopologyElement returns a new KibanaClusterTopologyElement with default values.
-func DefaultKibanaClusterTopologyElement() *KibanaClusterTopologyElement {
-	return &KibanaClusterTopologyElement{
-		MemoryPerNode:    1024,
-		NodeCountPerZone: 1,
-		ZoneCount:        1,
-	}
+	// MemoryPerNode    int `json:"memory_per_node"`
+	// NodeCountPerZone int `json:"node_count_per_zone"`
+	InstanceConfigurationID string       `json:"instance_configuration_id"`
+	Size                    TopologySize `json:"size"`
+	ZoneCount               int          `json:"zone_count"`
 }
 
 // KibanaConfiguration defines the Kibana instance settings. When specified at the top level, provides a field-by-field default.
 // When specified at the topology level, provides the override settings.
 // See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaConfiguration
 type KibanaConfiguration struct {
+	Version string `json:"version"`
 }
 
-// DefaultKibanaConfiguration returns a new KibanaConfiguration with default values.
-func DefaultKibanaConfiguration() *KibanaConfiguration {
-	return &KibanaConfiguration{}
+// KibanaPayload defines the Kibana creation request.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaPayload
+type KibanaPayload struct {
+	// DiaplayName               string             `json:"display_name"`
+	ElasticsearchClusterRefID string            `json:"elasticsearch_cluster_ref_id"`
+	Plan                      KibanaClusterPlan `json:"plan"`
+	RefID                     string            `json:"ref_id"`
+	Region                    string            `json:"region"`
+	// Settings KibanaClusterSettings `json:"settings"`
+}
+
+// KibanaResourceInfo defines a Kibana resource belonging to a deployment.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#KibanaResourceInfo
+type KibanaResourceInfo struct {
+	ElasticsearchClusterRefID string             `json:"elasticsearch_cluster_ref_id "`
+	ID                        string             `json:"id"`
+	Info                      *KibanaClusterInfo `json:"info"`
+	RefID                     string             `json:"ref_id"`
+	Region                    string             `json:"region"`
 }
 
 // KibanaSubClusterInfo defines information about the Kibana instances associated with the Elasticsearch cluster.
@@ -387,6 +444,13 @@ func DefaultKibanaConfiguration() *KibanaConfiguration {
 type KibanaSubClusterInfo struct {
 	Enabled  bool   `json:"enabled"`
 	KibanaID string `json:"kibana_id"`
+}
+
+// TopologySize defines the resource values.
+// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#TopologySize
+type TopologySize struct {
+	Resource string `json:"resource"`
+	Value    int32  `json:"value"`
 }
 
 // TransientElasticsearchPlanConfiguration defines the configuration parameters that control how the plan is applied.

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"time"
 
 	"github.com/hashicorp/terraform/helper/schema"
 )
@@ -24,59 +23,184 @@ func resourceElasticsearchCluster() *schema.Resource {
 		Update: nil,
 		Delete: resourceDeploymentDelete,
 		Schema: map[string]*schema.Schema{
-			"cluster_name": &schema.Schema{
+			"name": &schema.Schema{
 				Type:        schema.TypeString,
 				Description: "The name of the cluster.",
-				ForceNew:    false,
+				ForceNew:    true,
 				Required:    true,
+			},
+			"region": &schema.Schema{
+				Type:        schema.TypeString,
+				Description: "The region.",
+				ForceNew:    true,
+				Optional:    true,
+				Default:     "us-east-1",
+			},
+			"version": &schema.Schema{
+				Type:        schema.TypeString,
+				Description: "The Elastic-Stack version.",
+				ForceNew:    true,
+				Optional:    true,
+				Default:     "7.6.1",
+			},
+			"elasticsearch": {
+				Type:        schema.TypeList,
+				Description: "The plan for a Kibana instance that should be created as part of the Elasticsearch cluster.",
+				ForceNew:    true,
+				Required:    true,
+				MaxItems:    1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"plan": {
+							Type:        schema.TypeList,
+							Description: "The plan for the Elasticsearch cluster.",
+							ForceNew:    true,
+							Required:    true,
+							MaxItems:    1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"cluster_topology": {
+										Type:        schema.TypeList,
+										Description: "The topology of the Elasticsearch nodes, including the number, capacity, and type of nodes, and where they can be allocated.",
+										ForceNew:    true,
+										Required:    true,
+										Computed:    false,
+										MinItems:    1,
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"node_type": {
+													Type:        schema.TypeList,
+													Description: "Controls the combinations of Elasticsearch node types. By default, the Elasticsearch node is master eligible, can hold data, and run ingest pipelines.",
+													ForceNew:    true,
+													Optional:    true,
+													MaxItems:    1,
+													Elem: &schema.Resource{
+														Schema: map[string]*schema.Schema{
+															"data": {
+																Type:        schema.TypeBool,
+																Description: "Defines whether this node can hold data. The default is true.",
+																ForceNew:    true,
+																Optional:    true,
+																Default:     true,
+															},
+															"ingest": {
+																Type:        schema.TypeBool,
+																Description: "Defines whether this node can run an ingest pipeline. The default is true.",
+																ForceNew:    true,
+																Optional:    true,
+																Default:     true,
+															},
+															"master": {
+																Type:        schema.TypeBool,
+																Description: "Defines whether this node can be elected master. The default is true.",
+																ForceNew:    true,
+																Optional:    true,
+																Default:     true,
+															},
+															"ml": {
+																Type:        schema.TypeBool,
+																Description: "Defines whether this node can run ml jobs, valid only for versions 5.4.0 or greater. Not supported in OSS ECE. The default is false.",
+																ForceNew:    true,
+																Optional:    true,
+																Default:     false,
+															},
+														},
+													},
+												},
+												"size": {
+													Type:        schema.TypeList,
+													Description: "Measured by the amount of a resource. The final cluster size is calculated using multipliers from the topology instance configuration.",
+													ForceNew:    true,
+													Optional:    true,
+													MaxItems:    1,
+													Elem: &schema.Resource{
+														Schema: map[string]*schema.Schema{
+															"resource": {
+																Type:        schema.TypeString,
+																Description: "Type of resource.",
+																ForceNew:    true,
+																Optional:    true,
+																Default:     "memory",
+															},
+															"value": {
+																Type:        schema.TypeInt,
+																Description: "Amount of resource.",
+																ForceNew:    true,
+																Optional:    true,
+																Default:     1024,
+															},
+														},
+													},
+												},
+												"zone_count": &schema.Schema{
+													Type:        schema.TypeInt,
+													ForceNew:    true,
+													Optional:    true,
+													Default:     1,
+													Description: "The default number of zones in which data nodes will be placed. The default is 1.",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 			"kibana": {
 				Type:        schema.TypeList,
 				Description: "The plan for a Kibana instance that should be created as part of the Elasticsearch cluster.",
-				ForceNew:    false,
-				Optional:    true,
+				ForceNew:    true,
+				Required:    true,
 				MaxItems:    1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"cluster_name": &schema.Schema{
-							Type:        schema.TypeString,
-							Description: "The name of the Kibana cluster.",
-							ForceNew:    false,
-							Optional:    true,
-						},
 						"plan": {
 							Type:        schema.TypeList,
 							Description: "The plan for the Kibana cluster.",
-							ForceNew:    false,
-							Optional:    true,
+							ForceNew:    true,
+							Required:    true,
 							MaxItems:    1,
 							Elem: &schema.Resource{
 								Schema: map[string]*schema.Schema{
 									"cluster_topology": {
 										Type:        schema.TypeList,
 										Description: "The topology of the Kibana nodes, including the number, capacity, and type of nodes, and where they can be allocated.",
+										ForceNew:    true,
 										Optional:    true,
 										Computed:    false,
 										MaxItems:    1,
 										Elem: &schema.Resource{
 											Schema: map[string]*schema.Schema{
-												"memory_per_node": &schema.Schema{
-													Type:        schema.TypeInt,
-													Description: "The memory capacity in MB for each node of this type built in each zone. The default is 1024.",
-													ForceNew:    false,
+												"size": {
+													Type:        schema.TypeList,
+													Description: "Measured by the amount of a resource. The final cluster size is calculated using multipliers from the topology instance configuration.",
+													ForceNew:    true,
 													Optional:    true,
-													Default:     1024,
-												},
-												"node_count_per_zone": &schema.Schema{
-													Type:        schema.TypeInt,
-													Description: "The number of nodes of this type that are allocated within each zone. The default is 1.",
-													ForceNew:    false,
-													Optional:    true,
-													Default:     1,
+													MaxItems:    1,
+													Elem: &schema.Resource{
+														Schema: map[string]*schema.Schema{
+															"resource": {
+																Type:        schema.TypeString,
+																Description: "Type of resource.",
+																ForceNew:    true,
+																Optional:    true,
+																Default:     "memory",
+															},
+															"value": {
+																Type:        schema.TypeInt,
+																Description: "Amount of resource.",
+																ForceNew:    true,
+																Optional:    true,
+																Default:     1024,
+															},
+														},
+													},
 												},
 												"zone_count": &schema.Schema{
 													Type:        schema.TypeInt,
-													ForceNew:    false,
+													ForceNew:    true,
 													Optional:    true,
 													Default:     1,
 													Description: "The default number of zones in which nodes will be placed. The default is 1.",
@@ -90,125 +214,20 @@ func resourceElasticsearchCluster() *schema.Resource {
 					},
 				},
 			},
-			"plan": {
-				Type:        schema.TypeList,
-				Description: "The plan for the Elasticsearch cluster.",
-				ForceNew:    false,
-				Required:    true,
-				MaxItems:    1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"cluster_topology": {
-							Type:        schema.TypeList,
-							Description: "The topology of the Elasticsearch nodes, including the number, capacity, and type of nodes, and where they can be allocated.",
-							Optional:    true,
-							Computed:    false,
-							MinItems:    1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"instance_configuration_id": &schema.Schema{
-										Type:        schema.TypeString,
-										Description: "Controls the allocation of this topology element as well as allowed sizes and node_types. It needs to match the id of an existing instance configuration. The default is data.default.",
-										ForceNew:    false,
-										Optional:    true,
-										Default:     "data.default",
-									},
-									"memory_per_node": &schema.Schema{
-										Type:        schema.TypeInt,
-										Description: "The memory capacity in MB for each node of this type built in each zone. The default is 1024.",
-										ForceNew:    false,
-										Optional:    true,
-										Default:     1024,
-									},
-									"node_count_per_zone": &schema.Schema{
-										Type:        schema.TypeInt,
-										Description: "The number of nodes of this type that are allocated within each zone. The default is 1.",
-										ForceNew:    false,
-										Optional:    true,
-										Default:     1,
-									},
-									"node_type": {
-										Type:        schema.TypeList,
-										Description: "Controls the combinations of Elasticsearch node types. By default, the Elasticsearch node is master eligible, can hold data, and run ingest pipelines.",
-										ForceNew:    false,
-										Optional:    true,
-										MaxItems:    1,
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
-												"data": {
-													Type:        schema.TypeBool,
-													Description: "Defines whether this node can hold data. The default is true.",
-													Optional:    true,
-													Default:     true,
-												},
-												"ingest": {
-													Type:        schema.TypeBool,
-													Description: "Defines whether this node can run an ingest pipeline. The default is true.",
-													Optional:    true,
-													Default:     true,
-												},
-												"master": {
-													Type:        schema.TypeBool,
-													Description: "Defines whether this node can be elected master. The default is true.",
-													Optional:    true,
-													Default:     true,
-												},
-												"ml": {
-													Type:        schema.TypeBool,
-													Description: "Defines whether this node can run ml jobs, valid only for versions 5.4.0 or greater. Not supported in OSS ECE. The default is false.",
-													Optional:    true,
-													Default:     false,
-												},
-											},
-										},
-									},
-									"zone_count": &schema.Schema{
-										Type:        schema.TypeInt,
-										ForceNew:    false,
-										Optional:    true,
-										Default:     1,
-										Description: "The default number of zones in which data nodes will be placed. The default is 1.",
-									},
-								},
-							},
-						},
-						"elasticsearch": {
-							Type:        schema.TypeList,
-							Description: "The Elasticsearch cluster settings.",
-							ForceNew:    false,
-							Required:    true,
-							MaxItems:    1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"system_settings": &schema.Schema{
-										Type:        schema.TypeList,
-										Description: "The Elasticsearch cluster system settings.",
-										ForceNew:    false,
-										Optional:    true,
-										MaxItems:    1,
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
-												"use_disk_threshold": &schema.Schema{
-													Type:        schema.TypeBool,
-													Description: "Whether to factor in the available disk space on a node before deciding whether to allocate new shards to that node or actively relocate shards away from the node.",
-													ForceNew:    false,
-													Optional:    true,
-													Default:     true,
-												},
-											},
-										},
-									},
-									"version": &schema.Schema{
-										Type:        schema.TypeString,
-										Description: "The version of the Elasticsearch cluster (must be one of the ECE supported versions).",
-										ForceNew:    false,
-										Required:    true,
-									},
-								},
-							},
-						},
-					},
-				},
+			"elastic_cloud_id": &schema.Schema{
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The Elastic Cloud ID.",
+			},
+			"deployment_id": &schema.Schema{
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The id of the deployment.",
+			},
+			"deployment_name": &schema.Schema{
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The name of the deployment.",
 			},
 			"elasticsearch_username": &schema.Schema{
 				Type:        schema.TypeString,
@@ -230,28 +249,26 @@ func resourceElasticsearchCluster() *schema.Resource {
 func resourceDeploymentCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ECEClient)
 
-	deploymentName := d.Get("cluster_name").(string)
+	deploymentName := d.Get("name").(string)
 	log.Printf("[DEBUG] Creating deployment with name: %s\n", deploymentName)
+	region := d.Get("region").(string)
+	log.Printf("[DEBUG] Creating deployment in region: %s\n", region)
+	version := d.Get("version").(string)
+	log.Printf("[DEBUG] Creating deployment with Elastic-Stack version: %s\n", version)
 
-	clusterPlan, err := expandElasticsearchClusterPlan(d, meta)
+	elasticsearchPayload, err := expandElasticsearchPayload(d, meta)
 	if err != nil {
 		return err
 	}
 
-	kibanaRequest, err := expandKibanaCreateRequest(d, meta)
+	kibanaPayload, err := expandKibanaPayload(d, meta)
 	if err != nil {
 		return err
 	}
-
-	elasticsearchPayload := []*ElasticsearchPayload{DefaultElasticsearchPayload()}
-	elasticsearchPayload[0].Plan = clusterPlan
-
-	kibanaPayload := []*KibanaPayload{DefaultKibanaPayload()}
-	kibanaPayload[0].Plan = kibanaRequest.Plan
 
 	deploymentCreateResources := DeploymentCreateResources{
-		Elasticsearch: elasticsearchPayload,
-		Kibana:        kibanaPayload,
+		Elasticsearch: []*ElasticsearchPayload{elasticsearchPayload},
+		Kibana:        []*KibanaPayload{kibanaPayload},
 	}
 
 	deploymentCreateRequest := DeploymentCreateRequest{
@@ -261,7 +278,19 @@ func resourceDeploymentCreate(d *schema.ResourceData, meta interface{}) error {
 
 	createResponse, err := client.CreateDeployment(deploymentCreateRequest)
 
-	d.SetId(createResponse.Resources[0].CloudID)
+	d.SetId(createResponse.ID)
+	err = d.Set("elastic_cloud_id", createResponse.Resources[0].CloudID)
+	if err != nil {
+		return err
+	}
+	err = d.Set("deployment_id", createResponse.ID)
+	if err != nil {
+		return err
+	}
+	err = d.Set("deployment_name", createResponse.Name)
+	if err != nil {
+		return err
+	}
 	err = d.Set("elasticsearch_username", createResponse.Resources[0].Credentials.Username)
 	if err != nil {
 		return err
@@ -344,234 +373,75 @@ func flattenDeploymentPlan(deploymentInfo DeploymentGetResponse) []map[string]in
 	return clusterPlanMaps
 }
 
-func resourceElasticsearchClusterCreate(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ECEClient)
+func expandElasticsearchPayload(d *schema.ResourceData, meta interface{}) (elasticsearchPayload *ElasticsearchPayload, err error) {
+	log.Printf("[DEBUG] Expanding ElasticsearchPayload.\n")
 
-	clusterName := d.Get("cluster_name").(string)
-	log.Printf("[DEBUG] Creating elasticsearch cluster with name: %s\n", clusterName)
+	// Get sections from ResourceData.
+	region := d.Get("region").(string)
+	version := d.Get("version").(string)
+	elasticsearch := d.Get("elasticsearch").([]interface{})
+	log.Printf("[DEBUG] elasticsearch: %v\n", elasticsearch)
+	elasticsearchMap := elasticsearch[0].(map[string]interface{})
+	log.Printf("[DEBUG] elasticsearchMap: %v\n", elasticsearchMap)
 
-	clusterPlan, err := expandElasticsearchClusterPlan(d, meta)
-	if err != nil {
-		return err
-	}
+	elasticsearchPayload = DefaultElasticsearchPayload()
+	elasticsearchPayload.Region = region
+	elasticsearchPayload.Plan.Elasticsearch.Version = version
 
-	createClusterRequest := CreateElasticsearchClusterRequest{
-		ClusterName: clusterName,
-		Plan:        *clusterPlan,
-	}
-
-	kibanaRequest, err := expandKibanaCreateRequest(d, meta)
-	if err != nil {
-		return err
-	} else if kibanaRequest != nil {
-		log.Printf("[DEBUG] Kibana instance will be created: %v\n", *kibanaRequest)
-		createClusterRequest.Kibana = &CreateKibanaInCreateElasticsearchRequest{
-			ClusterName: kibanaRequest.ClusterName,
-			Plan:        kibanaRequest.Plan,
-		}
-	}
-
-	crudResponse, err := client.CreateElasticsearchCluster(createClusterRequest)
-	if err != nil {
-		return err
-	}
-
-	elasticsearchClusterID := crudResponse.ElasticsearchClusterID
-	log.Printf("[DEBUG] Created elasticsearch cluster ID: %s\n", elasticsearchClusterID)
-
-	err = client.WaitForElasticsearchClusterStatus(elasticsearchClusterID, "started", false)
-	if err != nil {
-		return err
-	}
-
-	// Confirm that the elasticsearch creation plan was successfully applied.
-	err = validateElasticsearchClusterPlanActivity(client, elasticsearchClusterID)
-	if err != nil {
-		return err
-	}
-
-	d.SetId(elasticsearchClusterID)
-	d.Set("elasticsearch_username", crudResponse.Credentials.Username)
-	d.Set("elasticsearch_password", crudResponse.Credentials.Password)
-
-	// Wait for the Kibana cluster to be created if it was included in the creation request.
-	kibanaClusterID := crudResponse.KibanaClusterID
-	if kibanaClusterID != "" {
-		err = client.WaitForKibanaClusterStatus(kibanaClusterID, "started", false)
+	if v, ok := elasticsearchMap["plan"]; ok {
+		err := expandElasticsearchClusterPlan(&elasticsearchPayload.Plan, v.(interface{}))
 		if err != nil {
-			return err
+			return nil, err
 		}
-
-		// Confirm that the Kibana creation plan was successfully applied.
-		err = validateKibanaClusterPlanActivity(client, kibanaClusterID)
-		if err != nil {
-			return err
-		}
-
-		log.Printf("[DEBUG] Created Kibana cluster ID: %s\n", kibanaClusterID)
-		d.Set("kibana_cluster_id", kibanaClusterID)
 	}
 
-	return resourceElasticsearchClusterRead(d, meta)
+	log.Printf("[DEBUG] ElasticsearchPayload: %v\n", elasticsearchPayload)
+
+	return elasticsearchPayload, nil
 }
 
-func resourceElasticsearchClusterRead(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ECEClient)
+func expandKibanaPayload(d *schema.ResourceData, meta interface{}) (kibanaPayload *KibanaPayload, err error) {
+	log.Printf("[DEBUG] Expanding KibanaPayload.\n")
 
-	clusterID := d.Id()
-	log.Printf("[DEBUG] Reading elasticsearch cluster information for cluster ID: %s\n", clusterID)
+	// Get sections from ResourceData.
+	region := d.Get("region").(string)
+	version := d.Get("version").(string)
+	kibana := d.Get("kibana").([]interface{})
+	kibanaMap := kibana[0].(map[string]interface{})
 
-	resp, err := client.GetElasticsearchCluster(clusterID)
-	if err != nil {
-		return err
+	kibanaPayload = DefaultKibanaPayload()
+	kibanaPayload.Region = region
+	kibanaPayload.Plan.Kibana.Version = version
+
+	if v, ok := kibanaMap["plan"]; ok {
+		err := expandKibanaClusterPlan(&kibanaPayload.Plan, v.(interface{}))
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// If the resource does not exist, inform Terraform. We want to immediately
-	// return here to prevent further processing.
-	if resp.StatusCode == 404 {
-		log.Printf("[DEBUG] Elasticsearch cluster ID not found: %s\n", clusterID)
-		d.SetId("")
+	log.Printf("[DEBUG] KibanaPayload: %v\n", kibanaPayload)
+
+	return kibanaPayload, nil
+}
+
+func expandElasticsearchClusterPlan(elasticsearchPlan *ElasticsearchClusterPlan, inputPlan interface{}) (err error) {
+	log.Printf("[DEBUG] Expanding ElasticsearchClusterPlan.\n")
+
+	elasticsearchPlanList := inputPlan.([]interface{})
+	elasticsearchPlanMap, ok := elasticsearchPlanList[0].(map[string]interface{})
+	if !ok {
 		return nil
 	}
 
-	respBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("[DEBUG] Elasticsearch cluster response body: %v\n", string(respBytes))
-
-	var clusterInfo ElasticsearchClusterInfo
-	err = json.Unmarshal(respBytes, &clusterInfo)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("[DEBUG] Setting elasticsearch cluster_name: %v\n", clusterInfo.ClusterName)
-	d.Set("cluster_name", clusterInfo.ClusterName)
-
-	plan := flattenElasticsearchClusterPlan(clusterInfo)
-	log.Printf("[DEBUG] Setting elasticsearch cluster plan: %v\n", plan)
-	d.Set("plan", plan)
-	if err != nil {
-		return err
-	}
-
-	if clusterInfo.AssociatedKibanaClusters != nil && len(clusterInfo.AssociatedKibanaClusters) > 0 {
-		kibanaClusterID := clusterInfo.AssociatedKibanaClusters[0].KibanaID
-		log.Printf("[DEBUG] Setting Kibana cluster ID: %v\n", kibanaClusterID)
-		d.Set("kibana_cluster_id", kibanaClusterID)
-		if err != nil {
-			return err
-		}
-	}
+	expandElasticsearchClusterTopology(elasticsearchPlan, elasticsearchPlanMap)
 
 	return nil
 }
 
-func resourceElasticsearchClusterUpdate(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ECEClient)
+func expandElasticsearchClusterTopology(clusterPlan *ElasticsearchClusterPlan, clusterPlanMap map[string]interface{}) {
+	log.Printf("[DEBUG] Expanding expandElasticsearchClusterTopology.\n")
 
-	d.Partial(true)
-
-	clusterID := d.Id()
-	log.Printf("[DEBUG] Updating elasticsearch cluster ID: %s\n", clusterID)
-
-	resp, err := client.GetElasticsearchCluster(clusterID)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode == 404 {
-		return fmt.Errorf("%q: cluster ID was not found for update", clusterID)
-	}
-
-	if d.HasChange("cluster_name") {
-		metadata := ClusterMetadataSettings{
-			ClusterName: d.Get("cluster_name").(string),
-		}
-
-		_, err = client.UpdateElasticsearchClusterMetadata(clusterID, metadata)
-		if err != nil {
-			return err
-		}
-	}
-
-	d.SetPartial("cluster_name")
-
-	if d.HasChange("plan") {
-		clusterPlan, err := expandElasticsearchClusterPlan(d, meta)
-		if err != nil {
-			return err
-		}
-
-		_, err = client.UpdateElasticsearchCluster(clusterID, *clusterPlan)
-		if err != nil {
-			return err
-		}
-
-		// Wait for the cluster plan to be initiated.
-		duration := time.Duration(5) * time.Second // 5 seconds
-		time.Sleep(duration)
-
-		err = client.WaitForElasticsearchClusterStatus(clusterID, "started", false)
-		if err != nil {
-			return err
-		}
-
-		// Confirm that the update plan was successfully applied.
-		err = validateElasticsearchClusterPlanActivity(client, clusterID)
-		if err != nil {
-			return err
-		}
-	}
-
-	d.SetPartial("plan")
-
-	if d.HasChange("kibana") {
-		err = updateKibanaCluster(client, clusterID, d, meta)
-		if err != nil {
-			return err
-		}
-	}
-
-	d.Partial(false)
-
-	return resourceElasticsearchClusterRead(d, meta)
-}
-
-func resourceElasticsearchClusterDelete(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ECEClient)
-	clusterID := d.Id()
-
-	log.Printf("[DEBUG] Deleting cluster ID: %s\n", clusterID)
-	_, err := client.DeleteElasticsearchCluster(clusterID)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func expandElasticsearchClusterPlan(d *schema.ResourceData, meta interface{}) (clusterPlan *ElasticsearchClusterPlan, err error) {
-	clusterPlanList := d.Get("plan").([]interface{})
-	clusterPlanMap := clusterPlanList[0].(map[string]interface{})
-
-	clusterTopology := expandElasticsearchClusterTopology(clusterPlanMap)
-	elasticsearchConfiguration, err := expandElasticsearchConfiguration(clusterPlanMap)
-	if err != nil {
-		return nil, err
-	}
-
-	clusterPlan = &ElasticsearchClusterPlan{
-		Elasticsearch:   *elasticsearchConfiguration,
-		ClusterTopology: clusterTopology,
-	}
-
-	return clusterPlan, nil
-}
-
-func expandElasticsearchClusterTopology(clusterPlanMap map[string]interface{}) []ElasticsearchClusterTopologyElement {
 	inputClusterTopologyMap := clusterPlanMap["cluster_topology"].([]interface{})
 	clusterTopology := make([]ElasticsearchClusterTopologyElement, 0)
 
@@ -583,14 +453,17 @@ func expandElasticsearchClusterTopology(clusterPlanMap map[string]interface{}) [
 			clusterTopologyElement.InstanceConfigurationID = v.(string)
 		}
 
-		if v, ok := elementMap["memory_per_node"]; ok {
-			clusterTopologyElement.MemoryPerNode = v.(int)
+		log.Printf("[DEBUG] Expanding size.\n")
+		if v, ok := elementMap["size"]; ok {
+			topologySize := DefaultTopologySize()
+			topologySizeMaps := v.([]interface{})
+			if len(topologySizeMaps) > 0 {
+				expandTopologySizeFromMap(topologySize, topologySizeMaps[0].(map[string]interface{}))
+			}
+			clusterTopologyElement.Size = *topologySize
 		}
 
-		if v, ok := elementMap["node_count_per_zone"]; ok {
-			clusterTopologyElement.NodeCountPerZone = v.(int)
-		}
-
+		log.Printf("[DEBUG] Expanding node_type.\n")
 		if v, ok := elementMap["node_type"]; ok {
 			nodeType := DefaultElasticsearchNodeType()
 			nodeTypeMaps := v.([]interface{})
@@ -600,6 +473,7 @@ func expandElasticsearchClusterTopology(clusterPlanMap map[string]interface{}) [
 			clusterTopologyElement.NodeType = *nodeType
 		}
 
+		log.Printf("[DEBUG] Expanding zone_count.\n")
 		if v, ok := elementMap["zone_count"]; ok {
 			clusterTopologyElement.ZoneCount = v.(int)
 		}
@@ -612,60 +486,9 @@ func expandElasticsearchClusterTopology(clusterPlanMap map[string]interface{}) [
 		clusterTopology = append(clusterTopology, *DefaultElasticsearchClusterTopologyElement())
 	}
 
-	return clusterTopology
-}
+	clusterPlan.ClusterTopology = clusterTopology
 
-func expandElasticsearchConfiguration(clusterPlanMap map[string]interface{}) (elasticsearchConfiguration *ElasticsearchConfiguration, err error) {
-	// Get the single elasticsearch element from the plan element.
-	elasticsearchList := clusterPlanMap["elasticsearch"].([]interface{})
-
-	if len(elasticsearchList) < 1 {
-		return nil, fmt.Errorf("cluster version is required")
-	}
-
-	elasticsearchMap, ok := elasticsearchList[0].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("cluster version is required")
-	}
-
-	elasticsearchConfiguration = &ElasticsearchConfiguration{
-		Version: elasticsearchMap["version"].(string),
-	}
-
-	systemSettings := DefaultElasticsearchSystemSettings()
-
-	if v, ok := elasticsearchMap["system_settings"]; ok {
-		err := expandElasticsearchSystemSettings(systemSettings, v.(interface{}))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	elasticsearchConfiguration.SystemSettings = *systemSettings
-
-	return elasticsearchConfiguration, nil
-}
-
-func expandElasticsearchSystemSettings(systemSettings *ElasticsearchSystemSettings, inputSystemSettings interface{}) error {
-	if inputSystemSettings == nil {
-		return nil
-	}
-
-	systemSettingsList := inputSystemSettings.([]interface{})
-	if len(systemSettingsList) == 0 {
-		return nil
-	}
-
-	systemSettingsMap, ok := systemSettingsList[0].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	if v, ok := systemSettingsMap["use_disk_threshold"]; ok {
-		systemSettings.UseDiskThreshold = v.(bool)
-	}
-
-	return nil
+	return
 }
 
 func expandKibanaClusterPlan(kibanaPlan *KibanaClusterPlan, inputPlan interface{}) error {
@@ -681,10 +504,6 @@ func expandKibanaClusterPlan(kibanaPlan *KibanaClusterPlan, inputPlan interface{
 	kibanaPlanMap, ok := kibanaPlanList[0].(map[string]interface{})
 	if !ok {
 		return nil
-	}
-
-	if v, ok := kibanaPlanMap["zone_count"]; ok {
-		kibanaPlan.ZoneCount = v.(int)
 	}
 
 	expandKibanaClusterTopology(kibanaPlan, kibanaPlanMap)
@@ -709,12 +528,17 @@ func expandKibanaClusterTopology(kibanaPlan *KibanaClusterPlan, kibanaPlanMap ma
 		elementMap := t.(map[string]interface{})
 		clusterTopologyElement := DefaultKibanaClusterTopologyElement()
 
-		if v, ok := elementMap["memory_per_node"]; ok {
-			clusterTopologyElement.MemoryPerNode = v.(int)
+		if v, ok := elementMap["instance_configuration_id"]; ok {
+			clusterTopologyElement.InstanceConfigurationID = v.(string)
 		}
 
-		if v, ok := elementMap["node_count_per_zone"]; ok {
-			clusterTopologyElement.NodeCountPerZone = v.(int)
+		if v, ok := elementMap["size"]; ok {
+			topologySize := DefaultTopologySize()
+			topologySizeMaps := v.([]interface{})
+			if len(topologySizeMaps) > 0 {
+				expandTopologySizeFromMap(topologySize, topologySizeMaps[0].(map[string]interface{}))
+			}
+			clusterTopologyElement.Size = *topologySize
 		}
 
 		if v, ok := elementMap["zone_count"]; ok {
@@ -732,48 +556,6 @@ func expandKibanaClusterTopology(kibanaPlan *KibanaClusterPlan, kibanaPlanMap ma
 	kibanaPlan.ClusterTopology = clusterTopology
 
 	return
-}
-
-func expandKibanaCreateRequest(d *schema.ResourceData, meta interface{}) (kibanaRequest *CreateKibanaRequest, err error) {
-	kibanaList := d.Get("kibana").([]interface{})
-
-	if kibanaList == nil || len(kibanaList) == 0 {
-		log.Printf("[DEBUG] Kibana configuration not specified. No Kibana instance will be created.\n")
-		return nil, nil
-	}
-
-	kibanaPlan := DefaultKibanaClusterPlan()
-
-	if kibanaList[0] == nil {
-		log.Printf("[DEBUG] Empty Kibana configuration specified. A default Kibana instance will be created.\n")
-
-		kibanaRequest = &CreateKibanaRequest{
-			Plan: kibanaPlan,
-		}
-
-		return kibanaRequest, nil
-	}
-
-	var kibanaName string
-	kibanaMap := kibanaList[0].(map[string]interface{})
-
-	if v, ok := kibanaMap["cluster_name"]; ok {
-		kibanaName = v.(string)
-	}
-
-	if v, ok := kibanaMap["plan"]; ok {
-		err := expandKibanaClusterPlan(kibanaPlan, v.(interface{}))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	kibanaRequest = &CreateKibanaRequest{
-		ClusterName: kibanaName,
-		Plan:        kibanaPlan,
-	}
-
-	return kibanaRequest, nil
 }
 
 func expandElasticsearchNodeTypeFromMap(nodeType *ElasticsearchNodeType, nodeTypeMap map[string]interface{}) {
@@ -795,6 +577,16 @@ func expandElasticsearchNodeTypeFromMap(nodeType *ElasticsearchNodeType, nodeTyp
 	if v, ok := nodeTypeMap["ml"]; ok {
 		nodeType.ML = v.(bool)
 		log.Printf("[DEBUG] Expanded node_type.ml as: %t\n", nodeType.ML)
+	}
+}
+
+func expandTopologySizeFromMap(topologySize *TopologySize, topologySizeMap map[string]interface{}) {
+	if v, ok := topologySizeMap["resource"]; ok {
+		topologySize.Resource = v.(string)
+	}
+
+	if v, ok := topologySizeMap["value"]; ok {
+		topologySize.Value = int32(v.(int))
 	}
 }
 
@@ -820,14 +612,14 @@ func flattenElasticsearchClusterTopology(clusterInfo ElasticsearchClusterInfo, c
 	// in the current version of ECE (2.2.3). To support either location, the zone count is used from cluster plan unless the
 	// cluster topology element has a non-zero value.
 	// See https://www.elastic.co/guide/en/cloud-enterprise/current/definitions.html#ElasticsearchClusterPlan
-	defaultZoneCount := clusterPlan.ZoneCount
+	defaultZoneCount := 1
 
 	for i, t := range clusterPlan.ClusterTopology {
 		elementMap := make(map[string]interface{})
 
 		elementMap["instance_configuration_id"] = t.InstanceConfigurationID
-		elementMap["memory_per_node"] = t.MemoryPerNode
-		elementMap["node_count_per_zone"] = t.NodeCountPerZone
+		//elementMap["memory_per_node"] = t.MemoryPerNode
+		//elementMap["node_count_per_zone"] = t.NodeCountPerZone
 
 		elementMap["node_type"] = flattenElasticsearchNodeType(clusterInfo, i)
 
@@ -851,7 +643,7 @@ func flattenElasticsearchConfiguration(configuration ElasticsearchConfiguration)
 
 	elasticsearchMap := make(map[string]interface{})
 	elasticsearchMap["version"] = configuration.Version
-	elasticsearchMap["system_settings"] = flattenElasticsearchSystemSettings(configuration.SystemSettings)
+	//elasticsearchMap["system_settings"] = flattenElasticsearchSystemSettings(configuration.SystemSettings)
 
 	elasticsearchMaps[0] = elasticsearchMap
 
@@ -915,93 +707,93 @@ func logJSON(context string, m interface{}) {
 	log.Printf("[DEBUG] %s: %s", context, string(jsonBytes))
 }
 
-func updateKibanaCluster(client *ECEClient, clusterID string, d *schema.ResourceData, meta interface{}) error {
-	// Use the Kibana Cluster ID to determine if an existing cluster is being updated/removed
-	// or a new cluster should be created.
-	var kibanaClusterID string
-	v, ok := d.GetOk("kibana_cluster_id")
-	if ok {
-		kibanaClusterID = v.(string)
-	}
+// func updateKibanaCluster(client *ECEClient, clusterID string, d *schema.ResourceData, meta interface{}) error {
+// 	// Use the Kibana Cluster ID to determine if an existing cluster is being updated/removed
+// 	// or a new cluster should be created.
+// 	var kibanaClusterID string
+// 	v, ok := d.GetOk("kibana_cluster_id")
+// 	if ok {
+// 		kibanaClusterID = v.(string)
+// 	}
 
-	// Create a KibanaCreateRequest from the resource inputs.
-	kibanaRequest, err := expandKibanaCreateRequest(d, meta)
-	if err != nil {
-		return err
-	}
+// 	// Create a KibanaCreateRequest from the resource inputs.
+// 	kibanaRequest, err := expandKibanaCreateRequest(d, meta)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	// If the Kibana cluster ID is empty, Terraform does not know of an existing Kibana cluster.
-	// In this case, if a cluster create request was created from resource inputs, use that
-	// request to create a new Kibana cluster.
-	if kibanaClusterID == "" {
-		if kibanaRequest != nil {
-			// Associate the new Kibana cluster with the elasticsearch cluster.
-			kibanaRequest.ElasticsearchClusterID = clusterID
+// 	// If the Kibana cluster ID is empty, Terraform does not know of an existing Kibana cluster.
+// 	// In this case, if a cluster create request was created from resource inputs, use that
+// 	// request to create a new Kibana cluster.
+// 	if kibanaClusterID == "" {
+// 		if kibanaRequest != nil {
+// 			// Associate the new Kibana cluster with the elasticsearch cluster.
+// 			kibanaRequest.ElasticsearchClusterID = clusterID
 
-			// Create a new Kibana cluster.
-			kibanaResponse, err := client.CreateKibanaCluster(*kibanaRequest)
-			if err != nil {
-				return err
-			}
+// 			// Create a new Kibana cluster.
+// 			kibanaResponse, err := client.CreateKibanaCluster(*kibanaRequest)
+// 			if err != nil {
+// 				return err
+// 			}
 
-			kibanaClusterID = kibanaResponse.KibanaClusterID
-			log.Printf("[DEBUG] Created Kibana cluster ID: %s\n", kibanaClusterID)
-		}
-	} else {
-		// If the Kibana cluster ID is not empty and a Kibana create request was constructed from
-		// resource inputs, update the existing cluster.
-		if kibanaRequest != nil {
-			// Update the existing Kibana cluster name.
-			metadata := ClusterMetadataSettings{
-				ClusterName: kibanaRequest.ClusterName,
-			}
+// 			kibanaClusterID = kibanaResponse.KibanaClusterID
+// 			log.Printf("[DEBUG] Created Kibana cluster ID: %s\n", kibanaClusterID)
+// 		}
+// 	} else {
+// 		// If the Kibana cluster ID is not empty and a Kibana create request was constructed from
+// 		// resource inputs, update the existing cluster.
+// 		if kibanaRequest != nil {
+// 			// Update the existing Kibana cluster name.
+// 			metadata := ClusterMetadataSettings{
+// 				ClusterName: kibanaRequest.ClusterName,
+// 			}
 
-			_, err = client.UpdateKibanaClusterMetadata(kibanaClusterID, metadata)
-			if err != nil {
-				return err
-			}
+// 			_, err = client.UpdateKibanaClusterMetadata(kibanaClusterID, metadata)
+// 			if err != nil {
+// 				return err
+// 			}
 
-			// Update the existing Kibana cluster.
-			_, err = client.UpdateKibanaCluster(kibanaClusterID, kibanaRequest.Plan)
-			if err != nil {
-				return err
-			}
-		} else {
-			// If the Kibana create request is nil but the Kibana cluster ID is not empty, the existing
-			// Kibana cluster should be deleted.
-			_, err = client.DeleteKibanaCluster(kibanaClusterID)
-			if err != nil {
-				return err
-			}
+// 			// Update the existing Kibana cluster.
+// 			_, err = client.UpdateKibanaCluster(kibanaClusterID, kibanaRequest.Plan)
+// 			if err != nil {
+// 				return err
+// 			}
+// 		} else {
+// 			// If the Kibana create request is nil but the Kibana cluster ID is not empty, the existing
+// 			// Kibana cluster should be deleted.
+// 			_, err = client.DeleteKibanaCluster(kibanaClusterID)
+// 			if err != nil {
+// 				return err
+// 			}
 
-			kibanaClusterID = ""
-			d.Set("kibana_cluster_id", nil)
-		}
-	}
+// 			kibanaClusterID = ""
+// 			d.Set("kibana_cluster_id", nil)
+// 		}
+// 	}
 
-	// If a Kibana cluster was created or updated, wait for the operation to complete and
-	// check for success of the plan activity.
-	if kibanaClusterID != "" {
-		// Wait for the cluster plan to be initiated.
-		duration := time.Duration(5) * time.Second // 5 seconds
-		time.Sleep(duration)
+// 	// If a Kibana cluster was created or updated, wait for the operation to complete and
+// 	// check for success of the plan activity.
+// 	if kibanaClusterID != "" {
+// 		// Wait for the cluster plan to be initiated.
+// 		duration := time.Duration(5) * time.Second // 5 seconds
+// 		time.Sleep(duration)
 
-		err = client.WaitForKibanaClusterStatus(kibanaClusterID, "started", false)
-		if err != nil {
-			return err
-		}
+// 		err = client.WaitForKibanaClusterStatus(kibanaClusterID, "started", false)
+// 		if err != nil {
+// 			return err
+// 		}
 
-		// Confirm that the Kibana update plan was successfully applied.
-		err = validateKibanaClusterPlanActivity(client, kibanaClusterID)
-		if err != nil {
-			return err
-		}
+// 		// Confirm that the Kibana update plan was successfully applied.
+// 		err = validateKibanaClusterPlanActivity(client, kibanaClusterID)
+// 		if err != nil {
+// 			return err
+// 		}
 
-		d.Set("kibana_cluster_id", kibanaClusterID)
-	}
+// 		d.Set("kibana_cluster_id", kibanaClusterID)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func validateElasticsearchClusterPlanActivity(client *ECEClient, clusterID string) error {
 	resp, err := client.GetElasticsearchClusterPlanActivity(clusterID)
