@@ -224,7 +224,7 @@ func (c *ECEClient) ShutdownDeployment(id string, hide bool, skipSnapshot bool) 
 
 	log.Printf("[DEBUG] ShutdownDeployment response: %v\n", resp)
 
-	if resp.StatusCode != 202 {
+	if resp.StatusCode != 200 {
 		respBytes, _ := ioutil.ReadAll(resp.Body)
 		return nil, fmt.Errorf("%q: elasticsearch cluster could not be shutdown: %v", id, string(respBytes))
 	}
