@@ -139,6 +139,13 @@ func resourceElasticsearchCluster() *schema.Resource {
 													Default:     1,
 													Description: "The default number of zones in which data nodes will be placed. The default is 1.",
 												},
+												"instance_configuration_id": &schema.Schema{
+													Type:        schema.TypeString,
+													ForceNew:    true,
+													Optional:    true,
+													Default:     "aws.data.highio.i3",
+													Description: "Controls the allocation of this topology element as well as allowed sizes and node_types. It needs to match the id of an existing instance configuration.",
+												},
 											},
 										},
 									},
@@ -204,6 +211,13 @@ func resourceElasticsearchCluster() *schema.Resource {
 													Optional:    true,
 													Default:     1,
 													Description: "The default number of zones in which nodes will be placed. The default is 1.",
+												},
+												"instance_configuration_id": &schema.Schema{
+													Type:        schema.TypeString,
+													ForceNew:    true,
+													Optional:    true,
+													Default:     "aws.kibana.r4",
+													Description: "Controls the allocation of this topology element as well as allowed sizes and node_types. It needs to match the id of an existing instance configuration.",
 												},
 											},
 										},
@@ -359,6 +373,8 @@ func resourceDeploymentRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func flattenDeploymentPlan(deploymentInfo DeploymentGetResponse) []map[string]interface{} {
+	log.Printf("[DEBUG] Flattening DeploymentPlan.\n")
+
 	clusterPlanMaps := make([]map[string]interface{}, 1)
 
 	elasticserachClusterInfo := deploymentInfo.Resources.Elasticsearch[0].Info
@@ -478,6 +494,11 @@ func expandElasticsearchClusterTopology(clusterPlan *ElasticsearchClusterPlan, c
 			clusterTopologyElement.ZoneCount = v.(int)
 		}
 
+		log.Printf("[DEBUG] Expanding instance_configuration_id.\n")
+		if v, ok := elementMap["instance_configuration_id"]; ok {
+			clusterTopologyElement.InstanceConfigurationID = v.(string)
+		}
+
 		clusterTopology = append(clusterTopology, *clusterTopologyElement)
 	}
 
@@ -543,6 +564,11 @@ func expandKibanaClusterTopology(kibanaPlan *KibanaClusterPlan, kibanaPlanMap ma
 
 		if v, ok := elementMap["zone_count"]; ok {
 			clusterTopologyElement.ZoneCount = v.(int)
+		}
+
+		log.Printf("[DEBUG] Expanding instance_configuration_id.\n")
+		if v, ok := elementMap["instance_configuration_id"]; ok {
+			clusterTopologyElement.InstanceConfigurationID = v.(string)
 		}
 
 		clusterTopology = append(clusterTopology, *clusterTopologyElement)
@@ -649,6 +675,7 @@ func flattenElasticsearchClusterTopology(clusterInfo ElasticsearchClusterInfo, c
 }
 
 func flattenElasticsearchConfiguration(configuration ElasticsearchConfiguration) []map[string]interface{} {
+	log.Printf("[DEBUG] Flattening ElasticsearchConfiguration.\n")
 	elasticsearchMaps := make([]map[string]interface{}, 1)
 
 	elasticsearchMap := make(map[string]interface{})
@@ -657,12 +684,14 @@ func flattenElasticsearchConfiguration(configuration ElasticsearchConfiguration)
 
 	elasticsearchMaps[0] = elasticsearchMap
 
-	logJSON("Flattened elasticsearch configuration", elasticsearchMaps)
+	logJSON("Flattened ElasticsearchConfiguration", elasticsearchMaps)
 
 	return elasticsearchMaps
 }
 
 func flattenElasticsearchNodeType(clusterInfo ElasticsearchClusterInfo, instanceIndex int) map[string]interface{} {
+	log.Printf("[DEBUG] Flattening ElasticsearchNodeType.\n")
+
 	nodeTypeMap := make(map[string]interface{})
 
 	if len(clusterInfo.Topology.Instances) > 0 {
@@ -676,7 +705,9 @@ func flattenElasticsearchNodeType(clusterInfo ElasticsearchClusterInfo, instance
 				nodeTypeValues[s] = true
 			}
 
+			log.Printf("[DEBUG] expandElasticsearchNodeTypeFromMap\n: %v", nodeTypeValues)
 			expandElasticsearchNodeTypeFromMap(nodeType, nodeTypeValues)
+			log.Printf("[DEBUG] expandElasticsearchNodeTypeFromMap\n")
 		}
 
 		nodeTypeMap["data"] = nodeType.Data
