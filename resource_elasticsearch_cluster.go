@@ -605,6 +605,8 @@ func flattenElasticsearchClusterPlan(clusterInfo ElasticsearchClusterInfo) []map
 }
 
 func flattenElasticsearchClusterTopology(clusterInfo ElasticsearchClusterInfo, clusterPlan ElasticsearchClusterPlan) []map[string]interface{} {
+	log.Printf("[DEBUG] Flattening ElasticsearchClusterTopology.\n")
+
 	topologyMap := make([]map[string]interface{}, 0)
 
 	// NOTE: This property appears as deprecated in the ECE API documentation, recommending use of the zone count from the
@@ -615,7 +617,15 @@ func flattenElasticsearchClusterTopology(clusterInfo ElasticsearchClusterInfo, c
 	defaultZoneCount := 1
 
 	for i, t := range clusterPlan.ClusterTopology {
+		log.Printf("[DEBUG] clusterPlan.ClusterTopology loop i, t: %v, %v\n", i, t)
 		elementMap := make(map[string]interface{})
+
+		// If Memory size is 0, then ignore.
+
+		if t.Size.Value == 0 {
+			log.Printf("[DEBUG] clusterPlan.ClusterTopology.Size.Value is 0, ignoring.\n")
+			continue
+		}
 
 		elementMap["instance_configuration_id"] = t.InstanceConfigurationID
 		//elementMap["memory_per_node"] = t.MemoryPerNode
